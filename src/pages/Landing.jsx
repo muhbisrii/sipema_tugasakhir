@@ -533,7 +533,7 @@ export default function Landing({ onStart, onAbout, onHelp, onStats }) {
                 <div className="title-underline !bg-[#4B2C82]"></div>
               </div>
               <div className="video-wrapper rounded-2xl overflow-hidden shadow-lg border border-purple-100 dark:border-slate-800">
-                <iframe src="https://drive.google.com/file/d/1C_8sUwHTuqiV_z1f-bNmaVD0pG-uhonm/preview?usp=sharing" title="Video Profil DPPPA" allow="autoplay" allowFullScreen></iframe>
+                <iframe src="https://drive.google.com/file/d/1gS9xtQnsRaMc4lKkD9sUnJEvrJw1fBiA/preview?usp=sharing" title="Video Profil DPPPA" allow="autoplay" allowFullScreen></iframe>
               </div>
               <p className="profile-desc text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
                 Dinas Pemberdayaan Perempuan dan Perlindungan Anak (DPPPA) Kota Banjarmasin merupakan unsur pelaksana urusan pemerintahan yang menjadi kewenangan daerah di bidang pemberdayaan perempuan dan perlindungan anak.
