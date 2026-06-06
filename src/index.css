@@ -1,0 +1,374 @@
+@import "tailwindcss";
+
+/* ===== ANIMASI MODERN & RESPONSIF ===== */
+
+/* Fade In Animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Slide Up Animation */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Slide Down Animation */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Slide Left Animation */
+@keyframes slideLeft {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Slide Right Animation */
+@keyframes slideRight {
+  from {
+    opacity: 0;
+    transform: translateX(-40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Float/Melayang Animation */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
+
+/* Soft Float Animation */
+@keyframes softFloat {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+/* Gentle Pulse Animation */
+@keyframes gentlePulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* Glow Pulse Animation */
+@keyframes glowPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(75, 44, 130, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(75, 44, 130, 0);
+  }
+}
+
+/* Rotate Animation */
+@keyframes rotate360 {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Scale Bounce Animation */
+@keyframes scaleBounce {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+/* Shimmer Animation */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+/* Gradient Animation */
+@keyframes gradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* Bounce In Animation */
+@keyframes bounceIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Glow Effect */
+@keyframes glow {
+  0%, 100% {
+    text-shadow: 0 0 5px rgba(75, 44, 130, 0.5);
+  }
+  50% {
+    text-shadow: 0 0 20px rgba(75, 44, 130, 0.8);
+  }
+}
+
+/* Smooth Entry */
+@keyframes smoothEntry {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Wave Hand Animation - Melambai Modern */
+@keyframes wave {
+  0% {
+    transform: rotate(0deg);
+  }
+  10% {
+    transform: rotate(14deg);
+  }
+  20% {
+    transform: rotate(-8deg);
+  }
+  30% {
+    transform: rotate(14deg);
+  }
+  40% {
+    transform: rotate(-4deg);
+  }
+  50% {
+    transform: rotate(10deg);
+  }
+  60% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+/* Continuous Wave with delay */
+@keyframes waveLoop {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  10% {
+    transform: rotate(14deg);
+  }
+  20% {
+    transform: rotate(-8deg);
+  }
+  30% {
+    transform: rotate(14deg);
+  }
+  40% {
+    transform: rotate(-4deg);
+  }
+  50% {
+    transform: rotate(10deg);
+  }
+  60% {
+    transform: rotate(0deg);
+  }
+}
+
+/* Utility classes untuk animasi */
+.animate-wave {
+  display: inline-block;
+  transform-origin: 70% 70%;
+  animation: waveLoop 1s ease-in-out infinite;
+}
+
+  /* Modern button utility for subtle zoom-on-hover and focus rings */
+  .btn-modern {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-transform duration-200 ease-out transform will-change-transform;
+  }
+  .btn-modern:hover {
+    transform: translateZ(0) scale(1.04);
+  }
+  .btn-modern:active {
+    transform: translateZ(0) scale(0.99);
+  }
+  .btn-modern:focus-visible {
+    outline: 2px solid rgba(59,130,246,0.2);
+    outline-offset: 4px;
+    box-shadow: 0 0 0 4px rgba(59,130,246,0.12);
+  }
+
+  /* Sidebar menu item - larger, full-width, aligned like design */
+  .sidebar-item {
+    @apply w-full flex items-center gap-4 px-6 py-4 rounded-xl transition-all duration-200 transform text-sm font-semibold;
+  }
+  .sidebar-item span {
+    @apply truncate;
+  }
+  .sidebar-item-active {
+    @apply bg-white text-[#4B2C82] shadow-lg;
+  }
+
+  /* Small responsive tweak: reduce padding on very small screens */
+  @media (max-width: 420px) {
+    .sidebar-item { @apply px-4 py-3 text-sm; }
+  }
+
+.animate-wave-slow {
+  display: inline-block;
+  transform-origin: 70% 70%;
+  animation: waveLoop 1.2s ease-in-out infinite;
+}
+
+/* Utility classes untuk animasi */
+.animate-fade-in {
+  animation: fadeIn 0.6s ease-out forwards;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.6s ease-out forwards;
+}
+
+.animate-slide-down {
+  animation: slideDown 0.6s ease-out forwards;
+}
+
+.animate-slide-left {
+  animation: slideLeft 0.6s ease-out forwards;
+}
+
+.animate-slide-right {
+  animation: slideRight 0.6s ease-out forwards;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-soft-float {
+  animation: softFloat 2.5s ease-in-out infinite;
+}
+
+.animate-gentle-pulse {
+  animation: gentlePulse 2s ease-in-out infinite;
+}
+
+.animate-glow-pulse {
+  animation: glowPulse 2s ease-out infinite;
+}
+
+.animate-rotate {
+  animation: rotate360 8s linear infinite;
+}
+
+.animate-scale-bounce {
+  animation: scaleBounce 1.5s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+  background: linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.2) 20%,
+    rgba(255, 255, 255, 0.5) 60%,
+    rgba(255, 255, 255, 0)
+  );
+  background-size: 1000px 100%;
+}
+
+.animate-gradient-shift {
+  animation: gradientShift 3s ease infinite;
+  background-size: 200% 200%;
+}
+
+.animate-bounce-in {
+  animation: bounceIn 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+}
+
+.animate-glow {
+  animation: glow 2s ease-in-out infinite;
+}
+
+.animate-smooth-entry {
+  animation: smoothEntry 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Delay variants untuk staggered animations */
+.delay-100 { animation-delay: 100ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+.delay-400 { animation-delay: 400ms; }
+.delay-500 { animation-delay: 500ms; }
+.delay-600 { animation-delay: 600ms; }
+.delay-700 { animation-delay: 700ms; }
+
+/* Responsive animations - disable pada mobile untuk performance */
+@media (max-width: 768px) {
+  .animate-float,
+  .animate-soft-float,
+  .animate-gentle-pulse,
+  .animate-scale-bounce,
+  .animate-glow,
+  .animate-rotate {
+    animation-duration: 4s;
+  }
+}
