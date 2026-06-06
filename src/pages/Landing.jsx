@@ -429,7 +429,7 @@ export default function Landing({ onStart, onAbout, onHelp, onStats }) {
         >
           <motion.div className="hero-left-img" variants={fadeInUp}>
             <motion.img 
-              src="public/vektor.png" 
+              src="/vektor.png" 
               alt="illustration" 
               className="hero-img"
               animate={{ y: [0, -20, 0] }}
