@@ -255,7 +255,7 @@ export default function Register() {
               
               <div className="text-center mt-4 animate-slide-up delay-300">
                 <span className="text-sm text-gray-500 font-medium">Sudah punya akun? </span>
-                <Link to="/" className="btn-modern text-sm text-[#4B2C82] font-black hover:underline hover:text-purple-900 transition-colors transform inline-block">Masuk di sini</Link>
+                <Link to="/login" className="btn-modern text-sm text-[#4B2C82] font-black hover:underline hover:text-purple-900 transition-colors transform inline-block">Masuk di sini</Link>
               </div>
             </form>
           )}

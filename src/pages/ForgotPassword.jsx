@@ -65,7 +65,7 @@ export default function ForgotPassword() {
         <div className="w-full max-w-md bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl p-8 border border-white/50 animate-fade-in">
           <form onSubmit={handleReset} className="space-y-6 animate-slide-down">
             <div className="mb-6">
-              <Link to="/" className="inline-flex items-center text-sm font-bold text-gray-500 hover:text-[#4B2C82] mb-6 transition-colors hover:-translate-x-1 transform animate-slide-left delay-100">
+              <Link to="/login" className="inline-flex items-center text-sm font-bold text-gray-500 hover:text-[#4B2C82] mb-6 transition-colors hover:-translate-x-1 transform animate-slide-left delay-100">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Kembali ke Login
               </Link>
