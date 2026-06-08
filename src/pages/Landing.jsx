@@ -275,7 +275,7 @@ export default function Landing({ onStart, onAbout, onHelp, onStats }) {
   ];
 
   return (
-    <div className="landing-container overflow-hidden bg-gray-50 dark:bg-slate-900 transition-colors duration-300">
+    <div className="landing-container bg-gray-50 dark:bg-slate-900 transition-colors duration-300">
       
       {/* LOADING OVERLAY */}
       {isLoading && (
@@ -297,7 +297,7 @@ export default function Landing({ onStart, onAbout, onHelp, onStats }) {
       {/* NAVBAR */}
       {/* NAVBAR */}
       <motion.nav 
-        className="landing-navbar sticky top-0 z-50 bg-white/95 backdrop-blur-sm dark:bg-[#0f172a]/95 shadow-lg border-b border-gray-200 dark:border-slate-800"
+        className="landing-navbar fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm dark:bg-[#0f172a]/95 shadow-lg border-b border-gray-200 dark:border-slate-800"
         initial="hidden" animate="visible" variants={fadeInDown}
       >
         <div className="nav-left flex items-center">
