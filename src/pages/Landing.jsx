@@ -295,8 +295,9 @@ export default function Landing({ onStart, onAbout, onHelp, onStats }) {
       )}
 
       {/* NAVBAR */}
+      {/* NAVBAR */}
       <motion.nav 
-        className="landing-navbar bg-white dark:bg-[#0f172a] shadow-lg border-b border-gray-200 dark:border-slate-800"
+        className="landing-navbar sticky top-0 z-50 bg-white/95 backdrop-blur-sm dark:bg-[#0f172a]/95 shadow-lg border-b border-gray-200 dark:border-slate-800"
         initial="hidden" animate="visible" variants={fadeInDown}
       >
         <div className="nav-left flex items-center">
