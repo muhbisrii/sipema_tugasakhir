@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Loader2, Eye, EyeOff, ShieldCheck } from 'lucide-react';
-// TAMBAHAN: Import signOut
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore'; 
 import { auth, db } from '../firebase'; 
@@ -24,47 +23,45 @@ export default function Login() {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // ==========================================
-      // PENGECEKAN SATPAM (VERIFIKASI EMAIL)
-      // ==========================================
-      if (!user.emailVerified) {
-        await signOut(auth); // Logout paksa agar tidak nyangkut
-        setErrorMsg("Login gagal: Harap verifikasi email Anda terlebih dahulu. Cek kotak masuk atau folder Spam Anda.");
-        setLoading(false);
-        return; // Hentikan proses eksekusi kode di bawahnya
-      }
-      // ==========================================
-
-      // 2. Ambil data user dari collection 'users' di Firestore
+      // 2. Ambil data user dari Firestore TERLEBIH DAHULU untuk mengetahui Role-nya
       const userDocRef = doc(db, 'users', user.uid);
       const userDocSnap = await getDoc(userDocRef);
+
+      let roleName = 'masyarakat'; // Default role
 
       if (userDocSnap.exists()) {
         const userData = userDocSnap.data();
         const roleId = userData.role_id;
 
-        // 3. Ambil nama role dari collection 'roles' berdasarkan role_id
+        // Ambil nama role dari collection 'roles' berdasarkan role_id
         if (roleId) {
           const roleDocRef = doc(db, 'roles', roleId);
           const roleDocSnap = await getDoc(roleDocRef);
 
           if (roleDocSnap.exists()) {
-            const roleName = roleDocSnap.data().nama_role.toLowerCase();
-
-            // 4. Arahkan pengguna berdasarkan Hak Akses (Role)
-            if (roleName === 'admin') {
-              navigate('/admin/complaints');
-            } else if (roleName === 'konselor') {
-              navigate('/konselor/dashboard'); 
-            } else {
-              navigate('/masyarakat');
-            }
-          } else {
-            navigate('/masyarakat');
+            roleName = roleDocSnap.data().nama_role.toLowerCase();
           }
-        } else {
-          navigate('/masyarakat');
         }
+      }
+
+      // ==========================================
+      // PENGECEKAN SATPAM (HANYA UNTUK MASYARAKAT)
+      // ==========================================
+      // Jika rolenya masyarakat DAN email belum diverifikasi, maka blokir!
+      if (roleName === 'masyarakat' && !user.emailVerified) {
+        await signOut(auth); // Logout paksa
+        setErrorMsg("Login gagal: Harap verifikasi email Anda terlebih dahulu. Cek kotak masuk atau folder Spam Anda.");
+        setLoading(false);
+        return; // Hentikan proses eksekusi kode
+      }
+      // ==========================================
+
+      // 3. Arahkan pengguna berdasarkan Hak Akses (Role)
+      // Admin dan Konselor akan lolos dari pengecekan di atas dan langsung masuk ke sini
+      if (roleName === 'admin') {
+        navigate('/admin/complaints');
+      } else if (roleName === 'konselor') {
+        navigate('/konselor/dashboard'); 
       } else {
         navigate('/masyarakat');
       }
