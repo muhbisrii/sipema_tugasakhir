@@ -11,16 +11,34 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  
+  const [isAgreed, setIsAgreed] = useState(false);
 
   const [formData, setFormData] = useState({
     nama: '', nik: '', email: '', no_hp: '', tanggal_lahir: '', jenis_kelamin: '', tingkat_pendidikan: '', password: '', konfirmasi: ''
   });
 
-  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleChange = (e) => {
+    let { name, value } = e.target;
+
+    // PERBAIKAN: Jika yang diubah adalah NIK, pastikan hanya angka yang masuk
+    if (name === 'nik') {
+      value = value.replace(/[^0-9]/g, ''); // Hapus semua karakter selain angka
+    }
+
+    setFormData({ ...formData, [name]: value });
+  };
 
   const handleRegister = async (e) => {
     e.preventDefault();
     setErrorMsg('');
+    
+    // PERBAIKAN: Validasi NIK harus pas 16 digit
+    if (formData.nik.length !== 16) {
+      return setErrorMsg("Pendaftaran gagal: NIK harus terdiri dari 16 digit angka!");
+    }
+
+    if (!isAgreed) return setErrorMsg("Anda harus menyetujui kebenaran data sebelum mendaftar.");
     if (formData.password !== formData.konfirmasi) return setErrorMsg("Password dan Konfirmasi tidak cocok!");
 
     setLoading(true);
@@ -105,7 +123,7 @@ export default function Register() {
 
   useEffect(() => {
     let timeout;
-    if (step === 3) timeout = setTimeout(() => navigate('/'), 3000);
+    if (step === 3) timeout = setTimeout(() => navigate('/login'), 3000);
     return () => clearTimeout(timeout);
   }, [step, navigate]);
 
@@ -156,7 +174,7 @@ export default function Register() {
 
               {errorMsg && <div className="bg-red-50 text-red-500 border border-red-200 p-3 rounded-xl text-sm mb-4 font-medium animate-bounce-in">{errorMsg}</div>}
 
-              {/* Scrollable Form Area dari Desain Figma */}
+              {/* Scrollable Form Area */}
               <div className="max-h-[50vh] overflow-y-auto pr-2 space-y-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-purple-200 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-purple-400">
                 
                 <div className="space-y-2 animate-slide-up delay-100">
@@ -180,7 +198,17 @@ export default function Register() {
                     <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">NIK</label>
                     <div className="relative group">
                       <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-[#4B2C82] transition-colors" />
-                      <input name="nik" value={formData.nik} onChange={handleChange} required placeholder="16 digit NIK" className="w-full pl-10 h-10 rounded-xl bg-gray-50 border border-gray-200 focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] outline-none text-sm hover:bg-gray-100 transition-colors" />
+                      {/* PERBAIKAN: Input tipe tel agar muncul numpad di HP, dan batas 16 karakter */}
+                      <input 
+                        name="nik" 
+                        type="tel" 
+                        maxLength="16"
+                        value={formData.nik} 
+                        onChange={handleChange} 
+                        required 
+                        placeholder="16 digit angka NIK" 
+                        className="w-full pl-10 h-10 rounded-xl bg-gray-50 border border-gray-200 focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] outline-none text-sm hover:bg-gray-100 transition-colors" 
+                      />
                     </div>
                   </div>
                   <div className="space-y-2 animate-slide-up delay-300">
@@ -249,7 +277,24 @@ export default function Register() {
                 </div>
               </div>
 
-              <button disabled={loading} type="submit" className={`btn-modern w-full h-14 bg-[#4B2C82] hover:bg-purple-900 text-white rounded-2xl text-base font-bold shadow-lg shadow-purple-900/20 mt-6 disabled:opacity-70 disabled:cursor-not-allowed animate-slide-up delay-700 ${loading ? 'cursor-wait' : ''}`}>
+              {/* Checkbox Persetujuan */}
+              <div className="flex items-start gap-3 mt-4 pt-2 border-t border-gray-100 animate-slide-up delay-600">
+                <div className="pt-0.5">
+                  <input 
+                    type="checkbox" 
+                    id="agreement" 
+                    checked={isAgreed}
+                    onChange={(e) => setIsAgreed(e.target.checked)}
+                    className="w-4 h-4 text-[#4B2C82] bg-gray-50 border-gray-300 rounded focus:ring-[#4B2C82] focus:ring-2 cursor-pointer"
+                  />
+                </div>
+                <label htmlFor="agreement" className="text-xs text-gray-500 leading-relaxed cursor-pointer select-none">
+                  Saya menyatakan dengan sesungguhnya bahwa seluruh data yang saya isikan di atas adalah <strong className="text-gray-700">benar dan sesuai dengan identitas asli saya</strong>.
+                </label>
+              </div>
+
+              {/* Tombol dimatikan (disabled) jika isAgreed false */}
+              <button disabled={loading || !isAgreed} type="submit" className={`btn-modern w-full h-14 bg-[#4B2C82] hover:bg-purple-900 text-white rounded-2xl text-base font-bold shadow-lg shadow-purple-900/20 mt-6 disabled:opacity-50 disabled:bg-gray-400 disabled:shadow-none disabled:cursor-not-allowed animate-slide-up delay-700 ${loading ? 'cursor-wait' : ''} transition-all`}>
                 {loading ? <Loader2 className="animate-spin h-5 w-5" /> : "Daftar Akun"}
               </button>
               

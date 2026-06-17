@@ -12,7 +12,9 @@ import { toast } from 'sonner';
 export default function AdminLayout({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  
+  // PERBAIKAN 1: Deteksi layar. Buka sidebar jika di Laptop, tutup otomatis jika di HP
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
   
   // Real Auth States
   const [adminName, setAdminName] = useState('Administrator');
@@ -26,6 +28,20 @@ export default function AdminLayout({ children }) {
   const [notifications, setNotifications] = useState([]);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const unreadCount = notifications.filter(n => !n.is_read).length;
+
+  // PERBAIKAN 2: Listener untuk mendeteksi perubahan ukuran layar (misal rotate HP)
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth <= 768) {
+        setIsSidebarOpen(false);
+      } else {
+        setIsSidebarOpen(true);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Real-time Clock
   useEffect(() => {
@@ -149,12 +165,26 @@ export default function AdminLayout({ children }) {
   ];
 
   return (
-    <div className="flex h-screen bg-[#F8F9FE] overflow-hidden">
+    <div className="flex h-screen bg-[#F8F9FE] overflow-hidden relative">
+      
+      {/* PERBAIKAN 3: Overlay (Gelap) di HP saat sidebar terbuka agar mudah ditutup */}
+      <AnimatePresence>
+        {isSidebarOpen && window.innerWidth <= 768 && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsSidebarOpen(false)}
+            className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-40 md:hidden"
+          />
+        )}
+      </AnimatePresence>
+
       {/* Sidebar */}
       <motion.aside 
         initial={false}
         animate={{ width: isSidebarOpen ? 280 : 0, opacity: isSidebarOpen ? 1 : 0 }}
-        className="bg-[#4B2C82] text-white flex-shrink-0 overflow-hidden relative z-20 shadow-xl"
+        className="bg-[#4B2C82] text-white flex-shrink-0 overflow-hidden absolute md:relative h-full z-50 shadow-2xl md:shadow-xl"
       >
         <div className="w-[280px] h-full flex flex-col p-6">
           <div className="flex items-center gap-3 mb-10 px-2">
@@ -187,7 +217,11 @@ export default function AdminLayout({ children }) {
               return (
                 <button
                   key={item.label}
-                  onClick={() => navigate(item.path)}
+                  onClick={() => {
+                    navigate(item.path);
+                    // PERBAIKAN 4: Tutup otomatis di HP jika menu ditekan
+                    if (window.innerWidth <= 768) setIsSidebarOpen(false);
+                  }}
                   className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-300 group ${
                     isActive 
                       ? 'bg-white text-[#4B2C82] shadow-lg shadow-purple-900/20' 
@@ -222,7 +256,7 @@ export default function AdminLayout({ children }) {
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
         {/* Header */}
-        <header className="h-20 bg-white border-b border-purple-100 px-8 flex items-center justify-between sticky top-0 z-30">
+        <header className="h-20 bg-white border-b border-purple-100 px-4 md:px-8 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center gap-4">
             <button 
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -343,7 +377,7 @@ export default function AdminLayout({ children }) {
             >
               <button 
                 onClick={() => setIsLogoutModalOpen(false)}
-                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
               >
                 <X className="w-5 h-5" />
               </button>

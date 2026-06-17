@@ -12,7 +12,9 @@ import { toast } from 'sonner';
 export default function KonselorLayout({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  
+  // PERBAIKAN 1: Deteksi layar. Buka sidebar jika di Laptop, tutup otomatis jika di HP
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
   
   // State untuk data user dan modal logout
   const [userName, setUserName] = useState('Konselor');
@@ -25,8 +27,22 @@ export default function KonselorLayout({ children }) {
   // Notification States
   const [notifications, setNotifications] = useState([]);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
-  const [isClearingNotifs, setIsClearingNotifs] = useState(false); // State untuk loading hapus notif
+  const [isClearingNotifs, setIsClearingNotifs] = useState(false); 
   const unreadCount = notifications.filter(n => !n.is_read).length;
+
+  // PERBAIKAN 2: Listener untuk mendeteksi perubahan ukuran layar (misal rotate HP)
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth <= 768) {
+        setIsSidebarOpen(false);
+      } else {
+        setIsSidebarOpen(true);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Real-time Clock
   useEffect(() => {
@@ -67,7 +83,6 @@ export default function KonselorLayout({ children }) {
           );
 
           const unsubNotif = onSnapshot(qNotif, (snapshot) => {
-            // 1. Update Lonceng Notifikasi Web
             const fetchedNotifs = snapshot.docs.map(doc => ({
               id: doc.id,
               ...doc.data(),
@@ -75,12 +90,10 @@ export default function KonselorLayout({ children }) {
             }));
             setNotifications(fetchedNotifs);
 
-            // 2. Trigger Pop-up Notifikasi ke Perangkat (Laptop/HP)
             snapshot.docChanges().forEach((change) => {
               if (change.type === "added") {
                 const newNotif = change.doc.data();
                 
-                // Mencegah notifikasi lama berbunyi, hanya yg baru masuk 5 detik terakhir
                 const now = Date.now();
                 const notifTime = newNotif.created_at?.toMillis() || 0;
                 
@@ -147,7 +160,6 @@ export default function KonselorLayout({ children }) {
     }
   };
 
-  // Fungsi Sapu Bersih Notifikasi
   const handleClearAllNotifs = async () => {
     if (notifications.length === 0) return;
     setIsClearingNotifs(true);
@@ -159,7 +171,7 @@ export default function KonselorLayout({ children }) {
       });
       await batch.commit();
       toast.success("Semua notifikasi berhasil dibersihkan");
-      setIsNotifOpen(false); // Menutup dropdown otomatis setelah dibersihkan
+      setIsNotifOpen(false); 
     } catch (error) {
       console.error("Gagal menghapus notifikasi:", error);
       toast.error("Gagal membersihkan notifikasi");
@@ -168,7 +180,6 @@ export default function KonselorLayout({ children }) {
     }
   };
 
-  // Menu dirampingkan: Laporan & Tanggapan disatukan di Penanganan Kasus
   const menuItems = [
     { path: '/konselor/dashboard', label: 'Dashboard', icon: BarChart3 },
     { path: '/konselor/complaints', label: 'Penanganan Kasus', icon: ClipboardList },
@@ -177,12 +188,26 @@ export default function KonselorLayout({ children }) {
   ];
 
   return (
-    <div className="flex h-screen bg-[#F8F9FE] overflow-hidden">
+    <div className="flex h-screen bg-[#F8F9FE] overflow-hidden relative">
+      
+      {/* PERBAIKAN 3: Overlay (Gelap) di HP saat sidebar terbuka agar mudah ditutup */}
+      <AnimatePresence>
+        {isSidebarOpen && window.innerWidth <= 768 && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsSidebarOpen(false)}
+            className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-40 md:hidden"
+          />
+        )}
+      </AnimatePresence>
+
       {/* Sidebar */}
       <motion.aside 
         initial={false}
         animate={{ width: isSidebarOpen ? 280 : 0, opacity: isSidebarOpen ? 1 : 0 }}
-        className="bg-[#4B2C82] text-white flex-shrink-0 overflow-hidden relative z-20 shadow-xl"
+        className="bg-[#4B2C82] text-white flex-shrink-0 overflow-hidden absolute md:relative h-full z-50 shadow-2xl md:shadow-xl"
       >
         <div className="w-[280px] h-full flex flex-col p-6">
           <div className="flex items-center gap-3 mb-10 px-2">
@@ -213,13 +238,16 @@ export default function KonselorLayout({ children }) {
             <p className="text-[10px] text-purple-300 mb-4 px-4 font-bold tracking-[0.2em] uppercase opacity-60">Menu Penanganan</p>
             {menuItems.map((item) => {
               const Icon = item.icon;
-              // Deteksi path aktif
               const isActive = location.pathname.includes(item.path) || (location.pathname === '/konselor' && item.path === '/konselor/dashboard');
               
               return (
                 <button
                   key={item.label}
-                  onClick={() => navigate(item.path)}
+                  onClick={() => {
+                    navigate(item.path);
+                    // PERBAIKAN 4: Tutup otomatis di HP jika menu ditekan
+                    if (window.innerWidth <= 768) setIsSidebarOpen(false);
+                  }}
                   className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-300 group ${
                     isActive 
                       ? 'bg-white text-[#4B2C82] shadow-lg shadow-purple-900/20' 
@@ -255,7 +283,7 @@ export default function KonselorLayout({ children }) {
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
         {/* Header */}
-        <header className="h-20 bg-white border-b border-purple-100 px-8 flex items-center justify-between sticky top-0 z-30">
+        <header className="h-20 bg-white border-b border-purple-100 px-4 md:px-8 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center gap-4">
             <button 
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -272,7 +300,6 @@ export default function KonselorLayout({ children }) {
           </div>
 
           <div className="flex items-center gap-6">
-            {/* WAKTU SEKARANG REALTIME */}
             <div className="hidden lg:flex items-center gap-3 text-right bg-purple-50 px-4 py-2 rounded-xl border border-purple-100">
               <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-sm">
                 <Clock className="w-4 h-4 text-[#4B2C82]" />
@@ -299,7 +326,6 @@ export default function KonselorLayout({ children }) {
                 )}
               </button>
 
-              {/* DROPDOWN NOTIFIKASI */}
               <AnimatePresence>
                 {isNotifOpen && (
                   <>

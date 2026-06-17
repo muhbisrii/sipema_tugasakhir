@@ -340,6 +340,19 @@ body.dark-mode .loading-link { color: #60a5fa; }
   .hero-right-text > div.flex { flex-direction: column; width: 100%; }
   .hero-right-text button, .hero-right-text a { width: 100% !important; justify-content: center; }
   
+  /* ---> PERBAIKAN KONTRAS TULISAN PORTAL DP3A DI HP <--- */
+  .hero-right-text .inline-flex {
+    background-color: #ffffff !important;
+    color: #4B2C82 !important;
+    border: 2px solid #e9d5ff !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+  }
+  body.dark-mode .hero-right-text .inline-flex {
+    background-color: #1e293b !important;
+    color: #e9d5ff !important;
+    border-color: #4B2C82 !important;
+  }
+  
   /* Profile Layout */
   .profile-layout { grid-template-columns: 1fr; gap: 40px; }
   .profile-title { font-size: 24px; text-align: center; }
@@ -442,5 +455,28 @@ body.dark-mode .loading-link { color: #60a5fa; }
   100% {
     transform: translateY(650px) rotate(360deg);
     opacity: 0;
+  }
+}
+
+/* =======================================
+   11. OVERRIDE AI CHAT WIDGET (TEMA UNGU & MOBILE)
+   ======================================= */
+.ai-toggle-btn {
+  background: linear-gradient(135deg, #4B2C82, #321c5a) !important;
+  box-shadow: 0 10px 25px rgba(75, 44, 130, 0.4) !important;
+}
+
+@media (max-width: 768px) {
+  .ai-toggle-btn {
+    padding: 10px 16px !important;
+    bottom: 20px !important;
+    right: 20px !important;
+  }
+  .ai-toggle-btn .btn-text {
+    font-size: 12px !important;
+  }
+  .ai-toggle-btn svg {
+    width: 20px !important;
+    height: 20px !important;
   }
 }

@@ -22,13 +22,11 @@ export default function Landing({ onStart, onAbout, onHelp, onStats }) {
   const [isLoading, setIsLoading] = useState(false);
 
   // --- STATE BERITA DINAMIS ---
-  // --- STATE BERITA DINAMIS ---
   const [newsData, setNewsData] = useState([{ id: 1, title: "Memuat berita trending...", link: "#" }]);
   const [fullNewsData, setFullNewsData] = useState([]);
   const [isLoadingNews, setIsLoadingNews] = useState(true);
 
   // --- DATA CADANGAN (FALLBACK) ---
-  // Data ini akan otomatis muncul jika API web dinas gagal diakses (CORS/Offline)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const fallbackNews = [
     {
@@ -110,7 +108,6 @@ export default function Landing({ onStart, onAbout, onHelp, onStats }) {
         }
       } catch (error) {
         console.warn("API Gagal ditarik, menggunakan data cadangan:", error);
-        // JIKA GAGAL: Masukkan data dummy yang sudah kamu siapkan
         setFullNewsData(fallbackNews);
         setNewsData(fallbackNews.slice(0, 5));
       } finally {
@@ -120,69 +117,6 @@ export default function Landing({ onStart, onAbout, onHelp, onStats }) {
 
     fetchBloggerNews();
   }, [fallbackNews]);
-
-  // --- LOGIKA DARK MODE ---
-  // (Removed dark/light mode state and toggle)
-
-  // --- FETCH BERITA DARI WEB RESMI (BLOGGER API) ---
-  useEffect(() => {
-    const fetchBloggerNews = async () => {
-      try {
-        const response = await fetch('https://dpppa.banjarmasinkota.go.id/feeds/posts/default?alt=json');
-        const data = await response.json();
-        
-        if (data && data.feed && data.feed.entry) {
-          const parsedNews = data.feed.entry.map((entry, index) => {
-            // 1. Ambil Link Berita
-            const linkObj = entry.link.find(l => l.rel === 'alternate');
-            const link = linkObj ? linkObj.href : '#';
-
-            // 2. Format Tanggal
-            const pubDate = new Date(entry.published.$t);
-            const options = { year: 'numeric', month: 'long', day: '2-digit' };
-            const formattedDate = pubDate.toLocaleDateString('id-ID', options);
-
-            // 3. Ambil Gambar
-            let imageUrl = '/pemkot.png';
-            if (entry.media$thumbnail) {
-               imageUrl = entry.media$thumbnail.url.replace(/\/s\d+-c/, '/w640');
-            } else if (entry.content && entry.content.$t) {
-               const imgRegex = /<img[^>]+src="([^">]+)"/;
-               const match = entry.content.$t.match(imgRegex);
-               if (match) imageUrl = match[1];
-            }
-
-            // 4. Ambil Deskripsi Singkat
-            let desc = '';
-            if (entry.content && entry.content.$t) {
-               const tmp = document.createElement("DIV");
-               tmp.innerHTML = entry.content.$t;
-               desc = tmp.textContent || tmp.innerText || "";
-               desc = desc.substring(0, 120) + '...';
-            }
-
-            return {
-              id: index + 1,
-              title: entry.title.$t,
-              link: link,
-              date: formattedDate,
-              image: imageUrl,
-              desc: desc
-            };
-          });
-
-          setFullNewsData(parsedNews);
-          setNewsData(parsedNews.slice(0, 5)); // Ambil 5 terbaru untuk trending
-        }
-      } catch (error) {
-        console.error("Gagal mengambil berita otomatis:", error);
-      } finally {
-        setIsLoadingNews(false);
-      }
-    };
-
-    fetchBloggerNews();
-  }, []);
 
   // --- LOGIKA TRENDING ---
   const handleNextNews = () => {
@@ -240,10 +174,7 @@ export default function Landing({ onStart, onAbout, onHelp, onStats }) {
     }
   };
 
-  // ============================================
   // --- HANDLER NAVIGASI ---
-  // ============================================
-
   const handleLoginClick = () => {
     setSidebarOpen(false);
     setIsLoading(true); 
@@ -262,8 +193,6 @@ export default function Landing({ onStart, onAbout, onHelp, onStats }) {
   const handleHelp = () => handleInstantNav(onHelp);
   const handleStats = () => handleInstantNav(onStats);
   
-  // ============================================
-
   const sidebarVideos = [
     { id: "qOep768DpOg", title: "Kegiatan DP3A" },
     { id: "Qc5l3FLxzF0", title: "Sosialisasi" }
@@ -294,7 +223,6 @@ export default function Landing({ onStart, onAbout, onHelp, onStats }) {
         </div>
       )}
 
-      {/* NAVBAR */}
       {/* NAVBAR */}
       <motion.nav 
         className="landing-navbar fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm dark:bg-[#0f172a]/95 shadow-lg border-b border-gray-200 dark:border-slate-800"
@@ -442,8 +370,9 @@ export default function Landing({ onStart, onAbout, onHelp, onStats }) {
             className="hero-right-text flex flex-col items-center sm:items-start text-center sm:text-left" 
             variants={fadeInUp}
           >
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-purple-50 text-[#4B2C82] border border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800 text-sm font-bold mb-4">
-              <Smartphone size={16} />
+            {/* PERBAIKAN: Kontras Warna untuk HP diperkuat */}
+            <div className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-white text-[#4B2C82] border border-purple-200 shadow-md text-sm font-black mb-4">
+              <Smartphone size={16} className="text-[#4B2C82]" />
               <span>Portal Resmi DP3A Banjarmasin</span>
             </div>
 
@@ -589,7 +518,6 @@ export default function Landing({ onStart, onAbout, onHelp, onStats }) {
             <div className="footer-socials pt-4 border-t border-purple-700 mt-4">
               <p className="social-label font-bold text-sm mb-3">Ikuti Kami:</p>
               <div className="social-icons flex gap-4">
-                {/* SVG ICONS MANUAL MENGGANTIKAN FACEBOOK, INSTAGRAM, YOUTUBE */}
                 <a href="https://web.facebook.com/people/DPPPA-KOTA-BANJARMASIN/100063900066891/" target="_blank" rel="noreferrer" className="social-link bg-white/10 p-2.5 rounded-full hover:bg-blue-600 transition-colors">
                   <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path></svg>
                 </a>
