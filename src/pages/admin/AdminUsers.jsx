@@ -200,7 +200,7 @@ export default function AdminUsers() {
 
       toast.success(`Akun ${newUser.role} berhasil dibuat dengan password: ${defaultPassword}`);
       setIsAddDialogOpen(false);
-      setNewUser({ name: '', email: '', role: 'masyarakat', phone: '', address: '', spesialisasi: '' });
+      setNewUser({ name: '', email: '', role: 'masyarakat', phone: '', address: '', spesialisasi: [] });
       setRefreshTrigger(prev => prev + 1); 
     } catch (error) {
       console.error("Gagal tambah user:", error);
@@ -249,7 +249,6 @@ export default function AdminUsers() {
         updated_at: serverTimestamp()
       };
 
-      // Hanya update spesialisasi jika dia adalah konselor
       if (editingUser.role === 'konselor') {
         updateData.spesialisasi = editingUser.spesialisasi;
       }
@@ -285,166 +284,175 @@ export default function AdminUsers() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-black text-[#4B2C82]">Manajemen Akun Pengguna</h2>
-          <p className="text-gray-500 font-medium text-sm mt-1">Kelola akun akses masyarakat dan konselor dalam sistem.</p>
-        </div>
-        <button 
-          onClick={() => setIsAddDialogOpen(true)}
-          className="btn-modern bg-[#4B2C82] hover:bg-purple-900 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-colors shadow-lg shadow-purple-900/20 text-sm"
-        >
-          <UserPlus className="w-4 h-4" />
-          Tambah Pengguna
-        </button>
-      </div>
-
-      {/* Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 text-center">
-          <div className="w-12 h-12 bg-purple-50 rounded-full flex items-center justify-center mx-auto mb-3">
-            <User className="w-6 h-6 text-[#4B2C82]" />
+    <>
+      {/* 
+        PERBAIKAN: Konten utama dibungkus terpisah dari modal 
+        agar modal bisa menggunakan fixed position yang benar (relatif ke viewport)
+      */}
+      <div className="space-y-6 animate-fade-in">
+        {/* Header */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h2 className="text-2xl font-black text-[#4B2C82]">Manajemen Akun Pengguna</h2>
+            <p className="text-gray-500 font-medium text-sm mt-1">Kelola akun akses masyarakat dan konselor dalam sistem.</p>
           </div>
-          <p className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-1">Total Pengguna</p>
-          <p className="text-3xl font-black text-[#4B2C82]">{filteredUsers.length}</p>
-        </div>
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 text-center">
-          <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-3">
-            <User className="w-6 h-6 text-blue-600" />
-          </div>
-          <p className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-1">Masyarakat</p>
-          <p className="text-3xl font-black text-blue-600">
-            {filteredUsers.filter(u => u.roleName?.toLowerCase() === 'masyarakat').length}
-          </p>
-        </div>
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 text-center">
-          <div className="w-12 h-12 bg-purple-50 rounded-full flex items-center justify-center mx-auto mb-3">
-            <ShieldCheck className="w-6 h-6 text-[#4B2C82]" />
-          </div>
-          <p className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-1">Konselor</p>
-          <p className="text-3xl font-black text-[#4B2C82]">
-            {filteredUsers.filter(u => u.roleName?.toLowerCase() === 'konselor').length}
-          </p>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Cari nama atau email..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 h-12 rounded-xl bg-gray-50 border border-gray-200 focus:outline-none focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] text-sm"
-            />
-          </div>
-          <select 
-            value={roleFilter} 
-            onChange={(e) => setRoleFilter(e.target.value)}
-            className="w-full px-4 h-12 rounded-xl bg-gray-50 border border-gray-200 focus:outline-none focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] text-sm"
-          >
-            <option value="all">Semua Role</option>
-            <option value="masyarakat">Masyarakat</option>
-            <option value="konselor">Konselor</option>
-          </select>
           <button 
-            onClick={() => { setSearchTerm(''); setRoleFilter('all'); }}
-            className="w-full h-12 border border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-50 transition-colors text-sm"
+            onClick={() => setIsAddDialogOpen(true)}
+            className="btn-modern bg-[#4B2C82] hover:bg-purple-900 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-colors shadow-lg shadow-purple-900/20 text-sm"
           >
-            Reset Filter
+            <UserPlus className="w-4 h-4" />
+            Tambah Pengguna
           </button>
         </div>
-      </div>
 
-      {/* Users Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-[#4B2C82]/5 border-b border-purple-100">
-              <tr>
-                <th className="py-4 px-6 text-xs font-black text-[#4B2C82] uppercase tracking-widest whitespace-nowrap">Nama & Alamat</th>
-                <th className="py-4 px-6 text-xs font-black text-[#4B2C82] uppercase tracking-widest whitespace-nowrap">Email</th>
-                <th className="py-4 px-6 text-xs font-black text-[#4B2C82] uppercase tracking-widest">Role & Keahlian</th>
-                <th className="py-4 px-6 text-xs font-black text-[#4B2C82] uppercase tracking-widest whitespace-nowrap">Telepon</th>
-                <th className="py-4 px-6 text-xs font-black text-[#4B2C82] uppercase tracking-widest whitespace-nowrap">Status</th>
-                <th className="py-4 px-6 text-xs font-black text-[#4B2C82] uppercase tracking-widest text-right whitespace-nowrap">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {loading ? (
+        {/* Statistics */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 text-center">
+            <div className="w-12 h-12 bg-purple-50 rounded-full flex items-center justify-center mx-auto mb-3">
+              <User className="w-6 h-6 text-[#4B2C82]" />
+            </div>
+            <p className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-1">Total Pengguna</p>
+            <p className="text-3xl font-black text-[#4B2C82]">{filteredUsers.length}</p>
+          </div>
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 text-center">
+            <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-3">
+              <User className="w-6 h-6 text-blue-600" />
+            </div>
+            <p className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-1">Masyarakat</p>
+            <p className="text-3xl font-black text-blue-600">
+              {filteredUsers.filter(u => u.roleName?.toLowerCase() === 'masyarakat').length}
+            </p>
+          </div>
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 text-center">
+            <div className="w-12 h-12 bg-purple-50 rounded-full flex items-center justify-center mx-auto mb-3">
+              <ShieldCheck className="w-6 h-6 text-[#4B2C82]" />
+            </div>
+            <p className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-1">Konselor</p>
+            <p className="text-3xl font-black text-[#4B2C82]">
+              {filteredUsers.filter(u => u.roleName?.toLowerCase() === 'konselor').length}
+            </p>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="relative">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Cari nama atau email..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 h-12 rounded-xl bg-gray-50 border border-gray-200 focus:outline-none focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] text-sm"
+              />
+            </div>
+            <select 
+              value={roleFilter} 
+              onChange={(e) => setRoleFilter(e.target.value)}
+              className="w-full px-4 h-12 rounded-xl bg-gray-50 border border-gray-200 focus:outline-none focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] text-sm"
+            >
+              <option value="all">Semua Role</option>
+              <option value="masyarakat">Masyarakat</option>
+              <option value="konselor">Konselor</option>
+            </select>
+            <button 
+              onClick={() => { setSearchTerm(''); setRoleFilter('all'); }}
+              className="w-full h-12 border border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-50 transition-colors text-sm"
+            >
+              Reset Filter
+            </button>
+          </div>
+        </div>
+
+        {/* Users Table */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead className="bg-[#4B2C82]/5 border-b border-purple-100">
                 <tr>
-                  <td colSpan="6" className="py-20 text-center">
-                    <Loader2 className="w-8 h-8 text-[#4B2C82] animate-spin mx-auto mb-4" />
-                    <p className="text-sm font-medium text-gray-500">Memuat data pengguna...</p>
-                  </td>
+                  <th className="py-4 px-6 text-xs font-black text-[#4B2C82] uppercase tracking-widest whitespace-nowrap">Nama & Alamat</th>
+                  <th className="py-4 px-6 text-xs font-black text-[#4B2C82] uppercase tracking-widest whitespace-nowrap">Email</th>
+                  <th className="py-4 px-6 text-xs font-black text-[#4B2C82] uppercase tracking-widest">Role & Keahlian</th>
+                  <th className="py-4 px-6 text-xs font-black text-[#4B2C82] uppercase tracking-widest whitespace-nowrap">Telepon</th>
+                  <th className="py-4 px-6 text-xs font-black text-[#4B2C82] uppercase tracking-widest whitespace-nowrap">Status</th>
+                  <th className="py-4 px-6 text-xs font-black text-[#4B2C82] uppercase tracking-widest text-right whitespace-nowrap">Aksi</th>
                 </tr>
-              ) : filteredUsers.length === 0 ? (
-                <tr>
-                  <td colSpan="6" className="py-20 text-center text-gray-500 font-medium">Tidak ada data pengguna ditemukan.</td>
-                </tr>
-              ) : (
-                filteredUsers.map((user) => (
-                  <tr key={user.id} className="hover:bg-purple-50/30 transition-colors">
-                    <td className="py-4 px-6">
-                      <p className="text-sm font-bold text-gray-800">{user.nama}</p>
-                      {user.alamat && (
-                        <p className="text-[10px] text-gray-500 font-medium mt-0.5 truncate max-w-[200px]">📍 {user.alamat}</p>
-                      )}
-                    </td>
-                    <td className="py-4 px-6">
-                      <p className="text-sm font-medium text-gray-700">{user.email}</p>
-                    </td>
-                    <td className="py-4 px-6 whitespace-nowrap">
-                      {getRoleBadge(user)}
-                    </td>
-                    <td className="py-4 px-6 text-sm font-medium text-gray-700 whitespace-nowrap">
-                      {user.no_hp || '-'}
-                    </td>
-                    <td className="py-4 px-6 whitespace-nowrap">
-                      {getStatusBadge(user.status_akun || 'aktif')}
-                    </td>
-                    <td className="py-4 px-6">
-                      <div className="flex items-center justify-end gap-2">
-                        <button 
-                          onClick={() => handleEditClick(user)}
-                          className="w-8 h-8 rounded-lg flex items-center justify-center text-blue-600 hover:bg-blue-50 transition-colors"
-                          title="Edit Pengguna"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteUser(user.id, user.nama)}
-                          className="w-8 h-8 rounded-lg flex items-center justify-center text-red-600 hover:bg-red-50 transition-colors"
-                          title="Hapus Pengguna"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {loading ? (
+                  <tr>
+                    <td colSpan="6" className="py-20 text-center">
+                      <Loader2 className="w-8 h-8 text-[#4B2C82] animate-spin mx-auto mb-4" />
+                      <p className="text-sm font-medium text-gray-500">Memuat data pengguna...</p>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : filteredUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="py-20 text-center text-gray-500 font-medium">Tidak ada data pengguna ditemukan.</td>
+                  </tr>
+                ) : (
+                  filteredUsers.map((user) => (
+                    <tr key={user.id} className="hover:bg-purple-50/30 transition-colors">
+                      <td className="py-4 px-6">
+                        <p className="text-sm font-bold text-gray-800">{user.nama}</p>
+                        {user.alamat && (
+                          <p className="text-[10px] text-gray-500 font-medium mt-0.5 truncate max-w-[200px]">📍 {user.alamat}</p>
+                        )}
+                      </td>
+                      <td className="py-4 px-6">
+                        <p className="text-sm font-medium text-gray-700">{user.email}</p>
+                      </td>
+                      <td className="py-4 px-6 whitespace-nowrap">
+                        {getRoleBadge(user)}
+                      </td>
+                      <td className="py-4 px-6 text-sm font-medium text-gray-700 whitespace-nowrap">
+                        {user.no_hp || '-'}
+                      </td>
+                      <td className="py-4 px-6 whitespace-nowrap">
+                        {getStatusBadge(user.status_akun || 'aktif')}
+                      </td>
+                      <td className="py-4 px-6">
+                        <div className="flex items-center justify-end gap-2">
+                          <button 
+                            onClick={() => handleEditClick(user)}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center text-blue-600 hover:bg-blue-50 transition-colors"
+                            title="Edit Pengguna"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteUser(user.id, user.nama)}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center text-red-600 hover:bg-red-50 transition-colors"
+                            title="Hapus Pengguna"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
+      {/* =======================================
+          PERBAIKAN: MODAL DI LUAR ANIMATE DIV 
+          ======================================= */}
       {/* Modal Tambah Pengguna */}
       <AnimatePresence>
         {isAddDialogOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white w-full max-w-md rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+              className="bg-white w-full max-w-md rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh]"
             >
-              <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50 shrink-0">
+              <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-gray-50 shrink-0">
                 <div>
                   <h3 className="text-lg font-black text-[#4B2C82]">Tambah Pengguna</h3>
                   <p className="text-xs text-gray-500 font-medium mt-1">Daftarkan akun masyarakat atau konselor baru.</p>
@@ -454,7 +462,7 @@ export default function AdminUsers() {
                 </button>
               </div>
               
-              <div className="p-6 overflow-y-auto space-y-4">
+              <div className="p-5 overflow-y-auto flex-1 min-h-0 space-y-4">
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Nama Lengkap</label>
                   <input
@@ -462,7 +470,7 @@ export default function AdminUsers() {
                     value={newUser.name}
                     onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
                     placeholder="Masukkan nama lengkap"
-                    className="w-full px-4 h-12 rounded-xl bg-gray-50 border border-gray-200 focus:outline-none focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] text-sm"
+                    className="w-full px-4 h-11 rounded-xl bg-gray-50 border border-gray-200 focus:outline-none focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] text-sm"
                   />
                 </div>
                 <div className="space-y-2">
@@ -472,7 +480,7 @@ export default function AdminUsers() {
                     value={newUser.email}
                     onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
                     placeholder={newUser.role === 'konselor' ? "nama@konselor.com" : "email@contoh.com"}
-                    className="w-full px-4 h-12 rounded-xl bg-gray-50 border border-gray-200 focus:outline-none focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] text-sm"
+                    className="w-full px-4 h-11 rounded-xl bg-gray-50 border border-gray-200 focus:outline-none focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] text-sm"
                   />
                   {newUser.role === 'konselor' && (
                     <p className="text-[10px] text-orange-500 font-bold">* Email konselor harus diakhiri dengan @konselor.com</p>
@@ -485,38 +493,37 @@ export default function AdminUsers() {
                     onChange={(e) => {
                       setNewUser({ ...newUser, role: e.target.value, spesialisasi: [] }) 
                     }}
-                    className="w-full px-4 h-12 rounded-xl bg-gray-50 border border-gray-200 focus:outline-none focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] text-sm font-bold text-[#4B2C82]"
+                    className="w-full px-4 h-11 rounded-xl bg-gray-50 border border-gray-200 focus:outline-none focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] text-sm font-bold text-[#4B2C82]"
                   >
                     <option value="masyarakat">Masyarakat</option>
                     <option value="konselor">Konselor</option>
                   </select>
                 </div>
 
-               // Ganti bagian spesialisasi di Modal Tambah Pengguna (AdminUsers.jsx)
-{newUser.role === 'konselor' && (
-  <div className="space-y-2 p-4 bg-purple-50 rounded-xl border border-purple-100">
-    <label className="text-xs font-bold text-purple-900 uppercase tracking-widest block mb-2">Pilih Keahlian (Bisa Lebih Dari Satu)</label>
-    <div className="grid grid-cols-1 gap-2">
-      {['Hukum / Paralegal', 'Psikologi / Klinis', 'Agama / Rohani', 'Pekerja Sosial'].map(skill => (
-        <label key={skill} className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
-          <input 
-            type="checkbox" 
-            checked={newUser.spesialisasi?.includes(skill)}
-            onChange={(e) => {
-              const current = newUser.spesialisasi || [];
-              const updated = e.target.checked 
-                ? [...current, skill] 
-                : current.filter(s => s !== skill);
-              setNewUser({ ...newUser, spesialisasi: updated });
-            }}
-            className="w-4 h-4 text-[#4B2C82] rounded focus:ring-[#4B2C82]"
-          />
-          {skill}
-        </label>
-      ))}
-    </div>
-  </div>
-)}
+                {newUser.role === 'konselor' && (
+                  <div className="space-y-2 p-4 bg-purple-50 rounded-xl border border-purple-100">
+                    <label className="text-xs font-bold text-purple-900 uppercase tracking-widest block mb-2">Pilih Keahlian (Bisa Lebih Dari Satu)</label>
+                    <div className="grid grid-cols-1 gap-2">
+                      {['Hukum / Paralegal', 'Psikologi / Klinis', 'Agama / Rohani', 'Pekerja Sosial'].map(skill => (
+                        <label key={skill} className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={newUser.spesialisasi?.includes(skill)}
+                            onChange={(e) => {
+                              const current = newUser.spesialisasi || [];
+                              const updated = e.target.checked 
+                                ? [...current, skill] 
+                                : current.filter(s => s !== skill);
+                              setNewUser({ ...newUser, spesialisasi: updated });
+                            }}
+                            className="w-4 h-4 text-[#4B2C82] rounded focus:ring-[#4B2C82]"
+                          />
+                          {skill}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">No. Telepon / WhatsApp</label>
@@ -525,7 +532,7 @@ export default function AdminUsers() {
                     value={newUser.phone}
                     onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })}
                     placeholder="081234567890"
-                    className="w-full px-4 h-12 rounded-xl bg-gray-50 border border-gray-200 focus:outline-none focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] text-sm"
+                    className="w-full px-4 h-11 rounded-xl bg-gray-50 border border-gray-200 focus:outline-none focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] text-sm"
                   />
                 </div>
                 
@@ -536,13 +543,13 @@ export default function AdminUsers() {
                       value={newUser.address}
                       onChange={(e) => setNewUser({ ...newUser, address: e.target.value })}
                       placeholder="Alamat lengkap tempat tinggal"
-                      className="w-full p-4 h-24 resize-none rounded-xl bg-gray-50 border border-gray-200 focus:outline-none focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] text-sm"
+                      className="w-full p-3 h-20 resize-none rounded-xl bg-gray-50 border border-gray-200 focus:outline-none focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] text-sm"
                     />
                   </div>
                 )}
               </div>
 
-              <div className="p-6 border-t border-gray-100 bg-white shrink-0">
+              <div className="p-5 border-t border-gray-100 bg-white shrink-0">
                 <button 
                   onClick={handleAddUser}
                   disabled={isSubmitting}
@@ -559,14 +566,14 @@ export default function AdminUsers() {
       {/* Modal Edit Pengguna */}
       <AnimatePresence>
         {isEditDialogOpen && editingUser && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white w-full max-w-md rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+              className="bg-white w-full max-w-md rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh]"
             >
-              <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50 shrink-0">
+              <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-gray-50 shrink-0">
                 <div>
                   <h3 className="text-lg font-black text-blue-600">Edit Pengguna</h3>
                   <p className="text-xs text-gray-500 font-medium mt-1">Perbarui profil dan status pengguna.</p>
@@ -576,7 +583,7 @@ export default function AdminUsers() {
                 </button>
               </div>
               
-              <div className="p-6 overflow-y-auto space-y-4">
+              <div className="p-5 overflow-y-auto flex-1 min-h-0 space-y-4">
                 <div className="bg-orange-50 text-orange-800 p-3 rounded-xl border border-orange-100 flex items-start gap-2 mb-2 text-xs font-medium">
                   <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-orange-600" />
                   <p>Email dan Hak Akses (Role) sengaja dikunci untuk mencegah kerusakan kredensial login pengguna.</p>
@@ -588,7 +595,7 @@ export default function AdminUsers() {
                     type="text"
                     value={editingUser.name}
                     onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
-                    className="w-full px-4 h-12 rounded-xl bg-white border border-gray-200 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm"
+                    className="w-full px-4 h-11 rounded-xl bg-white border border-gray-200 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm"
                   />
                 </div>
                 
@@ -598,7 +605,7 @@ export default function AdminUsers() {
                     type="text"
                     value={editingUser.phone}
                     onChange={(e) => setEditingUser({ ...editingUser, phone: e.target.value })}
-                    className="w-full px-4 h-12 rounded-xl bg-white border border-gray-200 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm"
+                    className="w-full px-4 h-11 rounded-xl bg-white border border-gray-200 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm"
                   />
                 </div>
 
@@ -632,7 +639,7 @@ export default function AdminUsers() {
                   <select 
                     value={editingUser.status_akun} 
                     onChange={(e) => setEditingUser({ ...editingUser, status_akun: e.target.value })}
-                    className={`w-full px-4 h-12 rounded-xl border focus:outline-none text-sm font-bold ${editingUser.status_akun === 'aktif' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}
+                    className={`w-full px-4 h-11 rounded-xl border focus:outline-none text-sm font-bold ${editingUser.status_akun === 'aktif' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}
                   >
                     <option value="aktif">Aktif (Dapat Login)</option>
                     <option value="nonaktif">Nonaktif (Diblokir)</option>
@@ -640,7 +647,7 @@ export default function AdminUsers() {
                 </div>
               </div>
 
-              <div className="p-6 border-t border-gray-100 bg-gray-50 flex gap-3 shrink-0">
+              <div className="p-5 border-t border-gray-100 bg-gray-50 flex gap-3 shrink-0">
                 <button 
                   onClick={() => setIsEditDialogOpen(false)}
                   className="flex-1 h-12 rounded-xl font-bold text-gray-600 bg-white border border-gray-200 hover:bg-gray-100 transition-colors"
@@ -659,6 +666,6 @@ export default function AdminUsers() {
           </div>
         )}
       </AnimatePresence>
-    </div>
+    </>
   );
 }
