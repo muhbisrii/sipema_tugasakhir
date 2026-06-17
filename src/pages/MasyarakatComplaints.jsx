@@ -9,6 +9,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 export default function MasyarakatComplaints() {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // PERBAIKAN 1: Tambahkan State untuk Filter
+  const [filterStatus, setFilterStatus] = useState('Semua');
+  const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
+
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
   
@@ -239,10 +244,6 @@ export default function MasyarakatComplaints() {
     }
   };
 
-  const filteredComplaints = complaints.filter(c => 
-    c.judul?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
   // --- PEMBARUAN KONFIGURASI STATUS BADGE ---
   const getStatusConfig = (status) => {
     switch (status?.toLowerCase()) {
@@ -264,6 +265,19 @@ export default function MasyarakatComplaints() {
         return { label: status || 'Unknown', class: 'bg-gray-50 text-gray-600 border-gray-100', icon: Clock };
     }
   };
+
+  // PERBAIKAN 2: Logika Filtering Laporan
+  const filteredComplaints = complaints.filter(c => {
+    const matchesSearch = c.judul?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    let matchesFilter = true;
+    if (filterStatus === 'Menunggu') matchesFilter = c.status_id?.toLowerCase() === 'menunggu';
+    else if (filterStatus === 'Proses') matchesFilter = ['diproses', 'telaah kasus', 'penjangkauan (home visit)', 'pendampingan layanan'].includes(c.status_id?.toLowerCase());
+    else if (filterStatus === 'Selesai') matchesFilter = c.status_id?.toLowerCase() === 'selesai';
+    else if (filterStatus === 'Ditolak') matchesFilter = c.status_id?.toLowerCase() === 'ditolak';
+
+    return matchesSearch && matchesFilter;
+  });
 
   const openRatingDialog = (e, complaint) => {
     if (e) e.stopPropagation();
@@ -400,10 +414,47 @@ export default function MasyarakatComplaints() {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <button className="btn-modern h-12 px-4 flex items-center justify-center rounded-xl border border-purple-100 bg-white text-[#4B2C82] font-bold hover:bg-purple-50 transition-colors">
-              <Filter className="w-4 h-4 mr-2" />
-              Filter
-            </button>
+            
+            {/* PERBAIKAN 3: Tombol Filter Menjadi Fungsional */}
+            <div className="relative">
+              <button 
+                onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
+                className={`btn-modern h-12 px-4 flex items-center justify-center rounded-xl border transition-colors ${filterStatus !== 'Semua' ? 'bg-[#4B2C82] text-white border-[#4B2C82]' : 'bg-white text-[#4B2C82] border-purple-100 hover:bg-purple-50'} font-bold`}
+              >
+                <Filter className="w-4 h-4 mr-2" />
+                {filterStatus}
+              </button>
+
+              <AnimatePresence>
+                {isFilterDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setIsFilterDropdownOpen(false)} />
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-purple-50 z-50 overflow-hidden"
+                    >
+                      <div className="p-2 flex flex-col gap-1">
+                        {['Semua', 'Menunggu', 'Proses', 'Selesai', 'Ditolak'].map((status) => (
+                          <button
+                            key={status}
+                            onClick={() => {
+                              setFilterStatus(status);
+                              setIsFilterDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${filterStatus === status ? 'bg-purple-50 text-[#4B2C82]' : 'text-gray-600 hover:bg-gray-50'}`}
+                          >
+                            {status}
+                          </button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+
           </div>
         </div>
 
@@ -419,16 +470,27 @@ export default function MasyarakatComplaints() {
                 <div className="w-24 h-24 bg-purple-50 rounded-[2.5rem] flex items-center justify-center mx-auto mb-6 shadow-inner">
                   <Eye className="w-12 h-12 text-[#4B2C82] opacity-20" />
                 </div>
-                <h3 className="text-xl font-black text-gray-800 mb-2">Belum Ada Pengaduan</h3>
+                <h3 className="text-xl font-black text-gray-800 mb-2">Tidak Ada Pengaduan</h3>
                 <p className="text-gray-500 font-medium mb-8 max-w-sm mx-auto">
-                  Semua pengaduan yang Anda buat akan muncul di sini. Klik tombol di bawah untuk mulai melaporkan.
+                  {filterStatus !== 'Semua' || searchTerm !== '' 
+                    ? "Tidak ada laporan yang sesuai dengan filter atau pencarian Anda." 
+                    : "Semua pengaduan yang Anda buat akan muncul di sini. Klik tombol di bawah untuk mulai melaporkan."}
                 </p>
-                <button 
-                  className="btn-modern bg-[#4B2C82] hover:bg-purple-900 text-white px-10 py-4 rounded-2xl font-bold shadow-xl transition-all"
-                  onClick={() => navigate('/masyarakat/form')}
-                >
-                  Buat Pengaduan Sekarang
-                </button>
+                {filterStatus === 'Semua' && searchTerm === '' ? (
+                  <button 
+                    className="btn-modern bg-[#4B2C82] hover:bg-purple-900 text-white px-10 py-4 rounded-2xl font-bold shadow-xl transition-all"
+                    onClick={() => navigate('/masyarakat/form')}
+                  >
+                    Buat Pengaduan Sekarang
+                  </button>
+                ) : (
+                  <button 
+                    className="btn-modern bg-gray-100 hover:bg-gray-200 text-gray-700 px-6 py-3 rounded-xl font-bold transition-all"
+                    onClick={() => { setFilterStatus('Semua'); setSearchTerm(''); }}
+                  >
+                    Hapus Pencarian & Filter
+                  </button>
+                )}
               </div>
             </div>
           </motion.div>
