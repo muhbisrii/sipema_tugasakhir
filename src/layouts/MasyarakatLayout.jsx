@@ -14,7 +14,6 @@ export default function MasyarakatLayout({ children }) {
   const location = useLocation();
   
   // PERBAIKAN 1: Deteksi ukuran layar saat pertama kali dimuat
-  // Jika lebar layar > 768px (Laptop/Desktop), sidebar terbuka. Jika tidak (HP), tertutup.
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
   
   const [userName, setUserName] = useState('Warga');
@@ -28,7 +27,7 @@ export default function MasyarakatLayout({ children }) {
   const [isClearingNotifs, setIsClearingNotifs] = useState(false);
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
-  // PERBAIKAN 2: Listener untuk mendeteksi perubahan ukuran layar (misal user memutar/meresize HP)
+  // PERBAIKAN 2: Listener untuk mendeteksi perubahan ukuran layar
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth <= 768) {
@@ -51,7 +50,7 @@ export default function MasyarakatLayout({ children }) {
   const formattedDate = currentTime.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
   const formattedTime = currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(/\./g, ':');
 
-  // Minta Izin Notifikasi Perangkat (Laptop/HP) saat web dimuat
+  // Minta Izin Notifikasi
   useEffect(() => {
     if ("Notification" in window && Notification.permission !== "granted" && Notification.permission !== "denied") {
       Notification.requestPermission();
@@ -61,6 +60,18 @@ export default function MasyarakatLayout({ children }) {
   // Mengambil data user dan notifikasi
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+      
+      // ==========================================
+      // PENGECEKAN SATPAM KEDUA (CEGAH AKSES BYPASS)
+      // ==========================================
+      if (user && !user.emailVerified) {
+        await signOut(auth); // Keluar paksa
+        toast.error("Harap verifikasi email Anda terlebih dahulu!");
+        navigate('/login');
+        return; // Hentikan proses render layout
+      }
+      // ==========================================
+
       if (user) {
         try {
           const docRef = doc(db, "users", user.uid);

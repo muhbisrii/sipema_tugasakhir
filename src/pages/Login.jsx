@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Loader2, Eye, EyeOff, ShieldCheck } from 'lucide-react';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore'; // Tambahkan import Firestore
-import { auth, db } from '../firebase'; // Pastikan db juga di-import
+// TAMBAHAN: Import signOut
+import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore'; 
+import { auth, db } from '../firebase'; 
 
 export default function Login() {
   const navigate = useNavigate();
@@ -22,6 +23,17 @@ export default function Login() {
       // 1. Autentikasi User
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
+
+      // ==========================================
+      // PENGECEKAN SATPAM (VERIFIKASI EMAIL)
+      // ==========================================
+      if (!user.emailVerified) {
+        await signOut(auth); // Logout paksa agar tidak nyangkut
+        setErrorMsg("Login gagal: Harap verifikasi email Anda terlebih dahulu. Cek kotak masuk atau folder Spam Anda.");
+        setLoading(false);
+        return; // Hentikan proses eksekusi kode di bawahnya
+      }
+      // ==========================================
 
       // 2. Ambil data user dari collection 'users' di Firestore
       const userDocRef = doc(db, 'users', user.uid);
@@ -43,22 +55,17 @@ export default function Login() {
             if (roleName === 'admin') {
               navigate('/admin/complaints');
             } else if (roleName === 'konselor') {
-              // Antisipasi untuk role konselor nantinya
               navigate('/konselor/dashboard'); 
             } else {
-              // Default ke halaman masyarakat
               navigate('/masyarakat');
             }
           } else {
-            // Jika dokumen role tidak ditemukan, default ke masyarakat
             navigate('/masyarakat');
           }
         } else {
-          // Jika tidak ada role_id di data user, default ke masyarakat
           navigate('/masyarakat');
         }
       } else {
-        // Jika data user tidak ditemukan di Firestore, default ke masyarakat
         navigate('/masyarakat');
       }
 
