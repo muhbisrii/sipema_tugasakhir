@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, Loader2, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { Mail, Lock, Loader2, Eye, EyeOff, ShieldCheck, X } from 'lucide-react';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore'; 
 import { auth, db } from '../firebase'; 
@@ -12,6 +12,25 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  
+  // State untuk mengontrol munculnya petunjuk pendaftaran
+  const [showRegisterHint, setShowRegisterHint] = useState(false);
+
+  // Mengecek apakah pengguna sudah pernah melihat petunjuk ini sebelumnya
+  useEffect(() => {
+    const hasSeenHint = localStorage.getItem('hasSeenLoginHint');
+    if (!hasSeenHint) {
+      // Memberikan jeda 1 detik sebelum petunjuk muncul agar terlihat natural
+      const timer = setTimeout(() => setShowRegisterHint(true), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  // Fungsi untuk menutup dan menyimpan status petunjuk ke browser
+  const handleDismissHint = () => {
+    setShowRegisterHint(false);
+    localStorage.setItem('hasSeenLoginHint', 'true');
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -191,12 +210,41 @@ export default function Login() {
               {loading ? <Loader2 className="animate-spin h-5 w-5" /> : "Masuk Sistem"}
             </button>
 
-            <div className="text-center mt-6 animate-slide-up delay-300">
+            {/* Bagian Link Register dengan Tooltip Hint */}
+            <div className="text-center mt-6 animate-slide-up delay-300 relative">
               <span className="text-sm text-gray-500 font-medium">Belum punya akun? </span>
-              <Link to="/register" className="text-sm text-[#4B2C82] font-black hover:underline hover:text-purple-900 transition-colors hover:scale-105 transform inline-block">
-                Daftar Sekarang
-              </Link>
+              
+              <div className="inline-block relative">
+                <Link 
+                  to="/register" 
+                  onClick={handleDismissHint} // Menutup hint kalau link beneran diklik
+                  className="text-sm text-[#4B2C82] font-black hover:underline hover:text-purple-900 transition-colors hover:scale-105 transform inline-block"
+                >
+                  Daftar Sekarang
+                </Link>
+
+                {/* Komponen Tooltip yang muncul untuk memandu pengguna */}
+                {showRegisterHint && (
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-56 bg-gradient-to-r from-[#6b42b9] to-[#4B2C82] text-white text-xs py-2.5 px-3 rounded-xl shadow-2xl animate-bounce z-50 flex items-center justify-between gap-2">
+                    <span className="font-semibold leading-relaxed">
+                      Belum punya akun? Daftar akun di sini!
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault(); 
+                        handleDismissHint();
+                      }}
+                      className="text-white hover:bg-white/20 p-1 rounded-full transition-colors flex-shrink-0"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                    {/* Segitiga panah ke bawah */}
+                    <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[8px] border-l-transparent border-t-[8px] border-t-[#4B2C82] border-r-[8px] border-r-transparent"></div>
+                  </div>
+                )}
+              </div>
             </div>
+
           </form>
         </div>
       </div>

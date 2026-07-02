@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Clock, CheckCircle, Bot, ArrowRight, Shield, ShieldAlert, HeartHandshake } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { FileText, Clock, CheckCircle, Bot, ArrowRight, Shield, ShieldAlert, HeartHandshake, X, ChevronRight, ChevronLeft } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { auth, db } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
@@ -11,19 +11,81 @@ export default function MasyarakatDashboard() {
   const [userName, setUserName] = useState('Warga');
   const [stats, setStats] = useState({ total: 0, pending: 0, completed: 0 });
 
+  // ==========================================
+  // CUSTOM TOUR GUIDE STATE (PURE REACT + FRAMER)
+  // ==========================================
+  const [showTour, setShowTour] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
+
+  const tourSteps = [
+    {
+      title: "Selamat Datang! 👋",
+      content: "Ini adalah Dashboard perlindungan Anda. Mari luangkan waktu beberapa detik untuk mengenali fitur-fitur di portal ini.",
+      icon: HeartHandshake,
+      color: "text-purple-500",
+      bg: "bg-purple-100"
+    },
+    {
+      title: "Buat Pengaduan 📝",
+      content: "Klik tombol 'Buat Pengaduan' untuk mulai melaporkan kasus Anda. Identitas dan privasi Anda dijamin aman 100%.",
+      icon: FileText,
+      color: "text-blue-500",
+      bg: "bg-blue-100"
+    },
+    {
+      title: "Konsultasi AI 🤖",
+      content: "Masih ragu atau butuh teman cerita? Asisten AI kami siap merespons keluh kesah Anda secara privat dan empatik.",
+      icon: Bot,
+      color: "text-teal-500",
+      bg: "bg-teal-100"
+    },
+    {
+      title: "Pantau Laporan 📊",
+      content: "Anda dapat memantau riwayat laporan secara real-time—apakah sedang diproses konselor atau sudah selesai ditangani.",
+      icon: Clock,
+      color: "text-orange-500",
+      bg: "bg-orange-100"
+    }
+  ];
+
+  useEffect(() => {
+    // Pengecekan agar Tour Modal hanya muncul 1x saat baru daftar/login
+    const hasSeenTour = localStorage.getItem('hasSeenCustomTour');
+    if (!hasSeenTour) {
+      const timer = setTimeout(() => setShowTour(true), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  const handleNextTour = () => {
+    if (currentStep < tourSteps.length - 1) {
+      setCurrentStep(currentStep + 1);
+    } else {
+      closeTour();
+    }
+  };
+
+  const handlePrevTour = () => {
+    if (currentStep > 0) setCurrentStep(currentStep - 1);
+  };
+
+  const closeTour = () => {
+    setShowTour(false);
+    localStorage.setItem('hasSeenCustomTour', 'true');
+  };
+  // ==========================================
+
   // Mengambil Data User & Statistik Pengaduan dari Firebase
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         try {
-          // 1. Ambil Nama User
           const docRef = doc(db, "users", user.uid);
           const docSnap = await getDoc(docRef);
           if (docSnap.exists()) {
-            setUserName(docSnap.data().nama.split(' ')[0]); // Ambil nama depan saja
+            setUserName(docSnap.data().nama.split(' ')[0]);
           }
 
-          // 2. Hitung Statistik Pengaduan (Mencari di tabel "pengaduan" milik user ini)
           const q = query(collection(db, "pengaduan"), where("user_id", "==", user.uid));
           const querySnapshot = await getDocs(q);
           
@@ -33,7 +95,7 @@ export default function MasyarakatDashboard() {
 
           querySnapshot.forEach((doc) => {
             total++;
-            const status = doc.data().status_pengaduan; // Sesuaikan dengan field di databasemu nanti
+            const status = doc.data().status_pengaduan; 
             if (status === 'menunggu' || status === 'diproses') pending++;
             if (status === 'selesai') completed++;
           });
@@ -64,8 +126,97 @@ export default function MasyarakatDashboard() {
       variants={containerVariants}
       initial="hidden"
       animate="visible"
-      className="space-y-8"
+      className="space-y-8 relative"
     >
+      {/* ========================================================
+          CUSTOM ONBOARDING MODAL (FRAMER MOTION + TAILWIND)
+          ======================================================== */}
+      <AnimatePresence>
+        {showTour && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#4B2C82]/60 backdrop-blur-sm p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden relative"
+            >
+              {/* Header Modal */}
+              <div className="flex justify-between items-center p-6 border-b border-gray-100">
+                <span className="text-sm font-bold text-gray-400 tracking-widest uppercase">
+                  Panduan {currentStep + 1} / {tourSteps.length}
+                </span>
+                <button 
+                  onClick={closeTour}
+                  className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-400 hover:text-red-500"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Konten Modal beranimasi */}
+              <div className="p-8 text-center flex flex-col items-center min-h-[280px] justify-center">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={currentStep}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.3 }}
+                    className="flex flex-col items-center"
+                  >
+                    <div className={`w-20 h-20 rounded-2xl flex items-center justify-center mb-6 shadow-inner ${tourSteps[currentStep].bg}`}>
+                      {(() => {
+                        const IconComponent = tourSteps[currentStep].icon;
+                        return <IconComponent className={`w-10 h-10 ${tourSteps[currentStep].color} animate-gentle-pulse`} />;
+                      })()}
+                    </div>
+                    <h3 className="text-2xl font-black text-[#4B2C82] mb-3">
+                      {tourSteps[currentStep].title}
+                    </h3>
+                    <p className="text-gray-500 font-medium leading-relaxed">
+                      {tourSteps[currentStep].content}
+                    </p>
+                  </motion.div>
+                </AnimatePresence>
+              </div>
+
+              {/* Footer / Navigasi Modal */}
+              <div className="p-6 bg-gray-50 flex items-center justify-between">
+                <button 
+                  onClick={closeTour}
+                  className="text-sm font-bold text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  Lewati
+                </button>
+                <div className="flex gap-2">
+                  {currentStep > 0 && (
+                    <button 
+                      onClick={handlePrevTour}
+                      className="p-3 bg-white border border-gray-200 text-gray-600 hover:bg-gray-100 rounded-xl font-bold transition-all shadow-sm flex items-center"
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </button>
+                  )}
+                  <button 
+                    onClick={handleNextTour}
+                    className="px-6 py-3 bg-[#4B2C82] hover:bg-purple-900 text-white rounded-xl font-bold transition-all shadow-lg flex items-center gap-2 transform active:scale-95"
+                  >
+                    {currentStep === tourSteps.length - 1 ? 'Selesai' : 'Lanjut'}
+                    {currentStep !== tourSteps.length - 1 && <ChevronRight className="w-5 h-5" />}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {/* ======================================================== */}
+
       {/* Welcome Banner */}
       <motion.div variants={itemVariants}>
         <div className="bg-[#4B2C82] text-white border-0 overflow-hidden relative shadow-2xl rounded-3xl group animate-smooth-entry">
