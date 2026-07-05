@@ -275,7 +275,7 @@ export default function AdminComplaints() {
     } catch (error) { toast.error("Gagal menghapus laporan."); } finally { setIsDeleting(false); }
   };
 
-  // --- TAMBAHAN: FUNGSI TOLAK LAPORAN ---
+  // --- FUNGSI TOLAK LAPORAN ---
   const handleRejectComplaint = async () => {
     if (!rejectReason.trim()) {
       toast.error("Mohon berikan alasan penolakan!");
@@ -444,17 +444,23 @@ export default function AdminComplaints() {
           </div>
         </div>
 
-        {/* Table */}
+        {/* Table - DENGAN PERBAIKAN STICKY KOLOM AKSI */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          {/* Container ini tetap bisa di-scroll ke kanan/kiri untuk melihat kolom yang panjang */}
           <div className="overflow-x-auto">
-            <table className="w-full text-left">
+            {/* Berikan min-width agar tampilan rapi meski di layar sempit */}
+            <table className="w-full text-left min-w-[800px]"> 
               <thead className="bg-[#4B2C82]/5 border-b border-purple-100">
                 <tr>
                   <th className="py-4 px-6 text-xs font-black text-[#4B2C82] uppercase tracking-widest whitespace-nowrap">Tanggal</th>
                   <th className="py-4 px-6 text-xs font-black text-[#4B2C82] uppercase tracking-widest whitespace-nowrap">Pelapor & Umur</th>
                   <th className="py-4 px-6 text-xs font-black text-[#4B2C82] uppercase tracking-widest">Kategori & Judul</th>
                   <th className="py-4 px-6 text-xs font-black text-[#4B2C82] uppercase tracking-widest whitespace-nowrap">Status & Penanganan</th>
-                  <th className="py-4 px-6 text-xs font-black text-[#4B2C82] uppercase tracking-widest text-right whitespace-nowrap">Aksi</th>
+                  
+                  {/* Kunci kolom Aksi agar lengket di kanan */}
+                  <th className="py-4 px-6 text-xs font-black text-[#4B2C82] uppercase tracking-widest text-right whitespace-nowrap sticky right-0 bg-[#f4f2f9] shadow-[-5px_0_10px_rgba(0,0,0,0.02)] border-l border-purple-100/50 z-10">
+                    Aksi
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -476,7 +482,7 @@ export default function AdminComplaints() {
                   </tr>
                 ) : (
                   filteredComplaints.map((complaint) => (
-                    <tr key={complaint.id} className="hover:bg-purple-50/30 transition-colors">
+                    <tr key={complaint.id} className="hover:bg-purple-50/30 transition-colors group">
                       <td className="py-4 px-6">
                         <p className="text-sm font-bold text-gray-800">
                           {complaint.created_at ? complaint.created_at.toDate().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
@@ -506,14 +512,16 @@ export default function AdminComplaints() {
                           )}
                         </div>
                       </td>
-                      <td className="py-4 px-6">
+
+                      {/* Kunci kolom Aksi agar lengket di kanan */}
+                      <td className="py-4 px-6 sticky right-0 bg-white group-hover:bg-[#fcfcff] shadow-[-5px_0_10px_rgba(0,0,0,0.02)] transition-colors z-10">
                         <div className="flex items-center justify-end gap-2">
                           {/* TOMBOL ACTION (Assign & Tolak) - Hanya muncul jika status Menunggu */}
                           {complaint.status_id === 'menunggu' && (
                             <div className="flex items-center gap-2 mr-2 border-r border-gray-200 pr-4">
                               <button 
                                 onClick={() => { setSelectedComplaint(complaint); setIsAssignOpen(true); }} 
-                                className="px-3 h-8 rounded-lg flex items-center justify-center gap-1 bg-[#4B2C82] text-white hover:bg-purple-900 transition-colors shadow-sm text-xs font-bold" 
+                                className="px-3 h-8 rounded-lg flex items-center justify-center gap-1 bg-[#4B2C82] text-white hover:bg-purple-900 transition-colors shadow-sm text-xs font-bold whitespace-nowrap" 
                                 title="Teruskan ke Konselor"
                               >
                                 <UserCheck className="w-3.5 h-3.5" /> Teruskan
@@ -521,7 +529,7 @@ export default function AdminComplaints() {
                               
                               <button 
                                 onClick={() => { setSelectedComplaint(complaint); setIsRejectOpen(true); }} 
-                                className="px-3 h-8 rounded-lg flex items-center justify-center gap-1 bg-red-50 text-red-600 hover:bg-red-100 transition-colors shadow-sm text-xs font-bold border border-red-100" 
+                                className="px-3 h-8 rounded-lg flex items-center justify-center gap-1 bg-red-50 text-red-600 hover:bg-red-100 transition-colors shadow-sm text-xs font-bold border border-red-100 whitespace-nowrap" 
                                 title="Tolak Laporan"
                               >
                                 <X className="w-3.5 h-3.5" /> Tolak
@@ -529,8 +537,8 @@ export default function AdminComplaints() {
                             </div>
                           )}
 
-                          <button onClick={() => { setSelectedComplaint(complaint); setIsDetailOpen(true); }} className="w-8 h-8 rounded-lg flex items-center justify-center text-blue-600 bg-blue-50 border border-blue-100 hover:bg-blue-100 transition-colors" title="Lihat Detail"><Eye className="w-4 h-4" /></button>
-                          <button onClick={() => triggerDelete(complaint)} className="w-8 h-8 rounded-lg flex items-center justify-center text-red-600 bg-red-50 border border-red-100 hover:bg-red-100 transition-colors" title="Hapus Laporan"><Trash2 className="w-4 h-4" /></button>
+                          <button onClick={() => { setSelectedComplaint(complaint); setIsDetailOpen(true); }} className="w-8 h-8 rounded-lg flex items-center justify-center text-blue-600 bg-blue-50 border border-blue-100 hover:bg-blue-100 transition-colors shrink-0" title="Lihat Detail"><Eye className="w-4 h-4" /></button>
+                          <button onClick={() => triggerDelete(complaint)} className="w-8 h-8 rounded-lg flex items-center justify-center text-red-600 bg-red-50 border border-red-100 hover:bg-red-100 transition-colors shrink-0" title="Hapus Laporan"><Trash2 className="w-4 h-4" /></button>
                         </div>
                       </td>
                     </tr>
@@ -616,7 +624,7 @@ export default function AdminComplaints() {
         )}
       </AnimatePresence>
 
-      {/* TAMBAHAN 2: Modal Tolak Laporan */}
+      {/* 2. Modal Tolak Laporan */}
       <AnimatePresence>
         {isRejectOpen && selectedComplaint && (
           <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
@@ -811,7 +819,7 @@ export default function AdminComplaints() {
                     <p className="text-lg font-bold text-gray-800">{selectedComplaint.judul}</p>
                   </div>
                   
-                  {/* TAMBAHAN: Menampilkan Alasan Penolakan jika ditolak */}
+                  {/* Menampilkan Alasan Penolakan jika ditolak */}
                   {selectedComplaint.status_id === 'ditolak' && selectedComplaint.alasan_penolakan && (
                     <div className="bg-red-50 p-4 rounded-2xl border border-red-100">
                       <h4 className="text-xs font-bold text-red-500 uppercase tracking-widest mb-1 flex items-center gap-1">
