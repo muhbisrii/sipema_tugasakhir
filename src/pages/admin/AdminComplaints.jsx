@@ -23,6 +23,11 @@ export default function AdminComplaints() {
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [isAssignOpen, setIsAssignOpen] = useState(false); // Modal Assign Konselor
   
+  // TAMBAHAN: State Modal Tolak Laporan
+  const [isRejectOpen, setIsRejectOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [isRejecting, setIsRejecting] = useState(false);
+  
   const [selectedComplaint, setSelectedComplaint] = useState(null);
   const [complaintToDelete, setComplaintToDelete] = useState(null);
   const [selectedCounselorId, setSelectedCounselorId] = useState('');
@@ -256,7 +261,7 @@ export default function AdminComplaints() {
     } catch (error) { toast.error("Terjadi kesalahan saat mencetak PDF."); } finally { setIsPrinting(false); }
   };
 
-  // --- ACTIONS ---
+  // --- ACTIONS DELETE ---
   const triggerDelete = (complaint) => { setComplaintToDelete(complaint); setIsDeleteOpen(true); };
   const confirmDelete = async () => {
     if (!complaintToDelete) return;
@@ -268,6 +273,58 @@ export default function AdminComplaints() {
       setIsDeleteOpen(false); setComplaintToDelete(null);
     // eslint-disable-next-line no-unused-vars
     } catch (error) { toast.error("Gagal menghapus laporan."); } finally { setIsDeleting(false); }
+  };
+
+  // --- TAMBAHAN: FUNGSI TOLAK LAPORAN ---
+  const handleRejectComplaint = async () => {
+    if (!rejectReason.trim()) {
+      toast.error("Mohon berikan alasan penolakan!");
+      return;
+    }
+    
+    setIsRejecting(true);
+    try {
+      const laporanRef = doc(db, "laporan", selectedComplaint.id);
+
+      // 1. Update status dan alasan
+      await updateDoc(laporanRef, { 
+        status_id: 'ditolak', 
+        alasan_penolakan: rejectReason,
+        updated_at: serverTimestamp() 
+      });
+      
+      // 2. Catat riwayat
+      await addDoc(collection(laporanRef, "riwayat_status"), {
+        status_id: 'ditolak', 
+        diubah_oleh: auth.currentUser.uid, 
+        alasan: rejectReason,
+        changed_at: serverTimestamp()
+      });
+
+      // 3. Kirim notifikasi ke pelapor
+      if (selectedComplaint.user_id) {
+        await addDoc(collection(db, "notifikasi"), {
+          target_user_id: selectedComplaint.user_id,
+          title: "Laporan Ditolak",
+          message: `Laporan Anda berjudul "${selectedComplaint.judul}" tidak dapat kami proses. Alasan: ${rejectReason}`,
+          type: "system",
+          link_to: "/masyarakat/complaints",
+          is_read: false,
+          created_at: serverTimestamp()
+        });
+      }
+
+      toast.success("Laporan berhasil ditolak dan pelapor telah diberitahu.");
+      setIsRejectOpen(false);
+      setRejectReason('');
+      setSelectedComplaint(null);
+      setRefreshTrigger(prev => prev + 1); // Refresh tabel
+    } catch (error) {
+      console.error(error);
+      toast.error("Gagal menolak laporan.");
+    } finally {
+      setIsRejecting(false);
+    }
   };
 
   // --- FUNGSI ASSIGN (TERUSKAN) KE KONSELOR ---
@@ -451,15 +508,25 @@ export default function AdminComplaints() {
                       </td>
                       <td className="py-4 px-6">
                         <div className="flex items-center justify-end gap-2">
-                          {/* TOMBOL ASSIGN KONSELOR (Hanya muncul jika status Menunggu) */}
+                          {/* TOMBOL ACTION (Assign & Tolak) - Hanya muncul jika status Menunggu */}
                           {complaint.status_id === 'menunggu' && (
-                            <button 
-                              onClick={() => { setSelectedComplaint(complaint); setIsAssignOpen(true); }} 
-                              className="px-3 h-8 rounded-lg flex items-center justify-center gap-1 bg-[#4B2C82] text-white hover:bg-purple-900 transition-colors shadow-sm text-xs font-bold" 
-                              title="Teruskan ke Konselor"
-                            >
-                              <UserCheck className="w-3.5 h-3.5" /> Teruskan
-                            </button>
+                            <div className="flex items-center gap-2 mr-2 border-r border-gray-200 pr-4">
+                              <button 
+                                onClick={() => { setSelectedComplaint(complaint); setIsAssignOpen(true); }} 
+                                className="px-3 h-8 rounded-lg flex items-center justify-center gap-1 bg-[#4B2C82] text-white hover:bg-purple-900 transition-colors shadow-sm text-xs font-bold" 
+                                title="Teruskan ke Konselor"
+                              >
+                                <UserCheck className="w-3.5 h-3.5" /> Teruskan
+                              </button>
+                              
+                              <button 
+                                onClick={() => { setSelectedComplaint(complaint); setIsRejectOpen(true); }} 
+                                className="px-3 h-8 rounded-lg flex items-center justify-center gap-1 bg-red-50 text-red-600 hover:bg-red-100 transition-colors shadow-sm text-xs font-bold border border-red-100" 
+                                title="Tolak Laporan"
+                              >
+                                <X className="w-3.5 h-3.5" /> Tolak
+                              </button>
+                            </div>
                           )}
 
                           <button onClick={() => { setSelectedComplaint(complaint); setIsDetailOpen(true); }} className="w-8 h-8 rounded-lg flex items-center justify-center text-blue-600 bg-blue-50 border border-blue-100 hover:bg-blue-100 transition-colors" title="Lihat Detail"><Eye className="w-4 h-4" /></button>
@@ -549,7 +616,73 @@ export default function AdminComplaints() {
         )}
       </AnimatePresence>
 
-      {/* 2. Modal Filter Cetak PDF */}
+      {/* TAMBAHAN 2: Modal Tolak Laporan */}
+      <AnimatePresence>
+        {isRejectOpen && selectedComplaint && (
+          <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+            >
+              <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-red-50 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center text-red-600">
+                    <AlertTriangle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-red-600">Tolak Laporan</h3>
+                    <p className="text-[10px] text-red-500 font-bold uppercase tracking-widest mt-0.5">Konfirmasi Penolakan</p>
+                  </div>
+                </div>
+                <button onClick={() => { setIsRejectOpen(false); setRejectReason(''); }} className="text-gray-400 hover:text-red-500 transition-colors p-2 hover:bg-red-100 rounded-full">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="p-6 space-y-5 overflow-y-auto">
+                <p className="text-sm text-gray-600">
+                  Anda akan menolak laporan berjudul <span className="font-bold">"{selectedComplaint.judul}"</span> dari <span className="font-bold">{selectedComplaint.reporterName}</span>.
+                </p>
+
+                <div className="space-y-3">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Alasan Penolakan <span className="text-red-500">*</span></label>
+                  <textarea
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    placeholder="Tuliskan alasan mengapa laporan ini ditolak (misal: Bukti tidak cukup, bukan ranah kekerasan, dll)..."
+                    className="w-full p-4 h-32 rounded-2xl bg-gray-50 border border-gray-200 focus:outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100 transition-all text-sm resize-none"
+                  ></textarea>
+                </div>
+
+                <div className="bg-gray-50 text-gray-500 p-4 rounded-xl text-sm font-medium border border-gray-200 flex gap-3">
+                  <AlertTriangle className="w-5 h-5 shrink-0 text-gray-400" />
+                  <p>Alasan penolakan ini akan dikirimkan kepada pelapor melalui sistem notifikasi.</p>
+                </div>
+              </div>
+
+              <div className="p-6 border-t border-gray-100 bg-white shrink-0 flex gap-3">
+                <button 
+                  onClick={() => { setIsRejectOpen(false); setRejectReason(''); }}
+                  className="flex-1 h-14 rounded-2xl font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
+                >
+                  Batal
+                </button>
+                <button 
+                  onClick={handleRejectComplaint}
+                  disabled={isRejecting || !rejectReason.trim()}
+                  className="flex-[2] h-14 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-bold shadow-lg transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                >
+                  {isRejecting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Tolak Laporan"}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 3. Modal Filter Cetak PDF */}
       <AnimatePresence>
         {isPrintModalOpen && (
           <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
@@ -662,7 +795,7 @@ export default function AdminComplaints() {
         )}
       </AnimatePresence>
 
-      {/* 3. Modal Detail, Delete */}
+      {/* 4. Modal Detail */}
       <AnimatePresence>
         {isDetailOpen && selectedComplaint && (
           <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
@@ -677,6 +810,17 @@ export default function AdminComplaints() {
                     <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Judul Laporan</h4>
                     <p className="text-lg font-bold text-gray-800">{selectedComplaint.judul}</p>
                   </div>
+                  
+                  {/* TAMBAHAN: Menampilkan Alasan Penolakan jika ditolak */}
+                  {selectedComplaint.status_id === 'ditolak' && selectedComplaint.alasan_penolakan && (
+                    <div className="bg-red-50 p-4 rounded-2xl border border-red-100">
+                      <h4 className="text-xs font-bold text-red-500 uppercase tracking-widest mb-1 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" /> Alasan Penolakan
+                      </h4>
+                      <p className="text-sm font-medium text-red-800">{selectedComplaint.alasan_penolakan}</p>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-purple-50 p-4 rounded-2xl"><h4 className="text-xs font-bold text-purple-400 uppercase tracking-widest mb-1">Kategori</h4><p className="font-bold text-[#4B2C82]">{selectedComplaint.kategori_id}</p></div>
                     <div className="bg-orange-50 p-4 rounded-2xl"><h4 className="text-xs font-bold text-orange-400 uppercase tracking-widest mb-1">Status Saat Ini</h4>{getStatusBadge(selectedComplaint.status_id)}</div>
@@ -690,6 +834,7 @@ export default function AdminComplaints() {
         )}
       </AnimatePresence>
 
+      {/* 5. Modal Hapus Permanen */}
       <AnimatePresence>
         {isDeleteOpen && complaintToDelete && (
           <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
