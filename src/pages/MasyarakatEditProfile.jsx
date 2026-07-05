@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { updatePassword, deleteUser } from 'firebase/auth';
 import { auth, db } from '../firebase';
-import { AlertCircle, User, Phone, Mail, CreditCard, Lock, ShieldAlert, CheckCircle, Loader2, AlertTriangle } from 'lucide-react';
+import { AlertCircle, User, Phone, Mail, CreditCard, Lock, ShieldAlert, CheckCircle, Loader2, AlertTriangle, Calendar } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 
@@ -20,6 +20,7 @@ export default function MasyarakatEditProfile() {
     nik: '',
     no_hp: '',
     email: '',
+    tanggal_lahir: '', // State baru untuk tanggal lahir
   });
 
   const [password, setPassword] = useState('');
@@ -38,6 +39,7 @@ export default function MasyarakatEditProfile() {
               nik: data.nik || '',
               no_hp: data.no_hp || '',
               email: data.email || auth.currentUser.email || '',
+              tanggal_lahir: data.tanggal_lahir || '', // Ambil dari Firestore
             });
           }
         } catch (error) {
@@ -69,6 +71,7 @@ export default function MasyarakatEditProfile() {
         nama: formData.nama,
         nik: formData.nik,
         no_hp: formData.no_hp,
+        tanggal_lahir: formData.tanggal_lahir, // Update ke Firestore
         updated_at: new Date()
       });
 
@@ -211,6 +214,23 @@ export default function MasyarakatEditProfile() {
                         value={formData.email} 
                         disabled 
                         className="w-full pl-12 pr-4 h-14 rounded-2xl border-gray-100 bg-gray-100 text-gray-500 opacity-60 cursor-not-allowed" 
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* TAMBAHAN: Input Tanggal Lahir (Kiri) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Tanggal Lahir</label>
+                    <div className="relative">
+                      <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300" />
+                      <input 
+                        type="date"
+                        name="tanggal_lahir" 
+                        value={formData.tanggal_lahir} 
+                        onChange={handleInputChange} 
+                        className="w-full pl-12 pr-4 h-14 rounded-2xl bg-gray-50 border border-gray-200 focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] outline-none transition-all text-gray-700" 
                       />
                     </div>
                   </div>
