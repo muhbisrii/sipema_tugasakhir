@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 export default function KonselorComplaints() {
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Modal & Action States
   const [activeModal, setActiveModal] = useState(null); // 'detail' | 'logbook' | 'status' | 'jadwal' | 'chat' | null
@@ -25,7 +26,7 @@ export default function KonselorComplaints() {
     title: '', date: '', time: '', location: '', type: 'offline', notes: ''
   });
 
-  // Filter State
+  // Filter State (Hanya Sedang Ditangani & Selesai)
   const [filterTab, setFilterTab] = useState('saya'); // 'saya' | 'selesai'
 
   // Live Chat States 
@@ -33,11 +34,14 @@ export default function KonselorComplaints() {
   const [newMessage, setNewMessage] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
 
-  // Typing Indicator States
+  // State untuk fungsi Typing Indicator
   const [isTyping, setIsTyping] = useState(false);
   const [typingTimeoutId, setTypingTimeoutId] = useState(null);
+  
+  // State untuk mendeteksi apakah klien sedang mengetik
   const [isClientTyping, setIsClientTyping] = useState(false);
 
+  // Auto-scroll referensi
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -50,12 +54,14 @@ export default function KonselorComplaints() {
     }
   }, [chatMessages, isClientTyping, activeModal]);
 
+  // Bersihkan timeout saat komponen unmount
   useEffect(() => {
     return () => {
       if (typingTimeoutId) clearTimeout(typingTimeoutId);
     };
   }, [typingTimeoutId]);
 
+  // Fungsi hitung umur
   const calculateAge = (birthDateData) => {
     if (!birthDateData) return '-';
     try {
@@ -67,11 +73,15 @@ export default function KonselorComplaints() {
       } else {
         return '-';
       }
+
       if (isNaN(date.getTime())) return '-';
+      
       const today = new Date();
       let age = today.getFullYear() - date.getFullYear();
       const m = today.getMonth() - date.getMonth();
-      if (m < 0 || (m === 0 && today.getDate() < date.getDate())) age--;
+      if (m < 0 || (m === 0 && today.getDate() < date.getDate())) {
+        age--;
+      }
       return age;
     // eslint-disable-next-line no-unused-vars
     } catch (e) {
@@ -79,15 +89,12 @@ export default function KonselorComplaints() {
     }
   };
 
-  const currentUserId = auth.currentUser?.uid;
-
-  // Fetch Data Laporan secara REAL-TIME
+  // Fetch Data Laporan (DIOPTIMASI UNTUK KECEPATAN TINGGI)
   useEffect(() => {
-    if (!currentUserId) return;
-    
-    let unsubscribeLaporan;
-
-    const setupRealtimeData = async () => {
+    const fetchComplaintsData = async () => {
+      if (!auth.currentUser) return;
+      const currentUserId = auth.currentUser.uid;
+      
       setLoading(true);
       try {
         // A. Tarik memori user (sekali saja) agar tidak N+1
@@ -97,119 +104,114 @@ export default function KonselorComplaints() {
           usersMap[doc.id] = doc.data();
         });
 
-        // B. Buat Listener (onSnapshot) untuk tabel laporan
-        const q = query(collection(db, "laporan"));
-        unsubscribeLaporan = onSnapshot(q, async (snapshot) => {
-          const fetchedData = [];
+        // B. Tarik laporan
+        const laporanSnap = await getDocs(collection(db, "laporan"));
+        const fetchedData = [];
 
-          // Kita gunakan for...of loop biasa di sini karena kita butuh ngecek subkoleksi (jika ada)
-          for (const docSnap of snapshot.docs) {
-            const reportId = docSnap.id;
-            const data = docSnap.data();
-            
-            let isAssignedToMe = false;
-            let assignedCounselorName = null;
-            
-            // Mengecek apakah laporan ini ditugaskan ke konselor ini
-            if (data.konselor_id === currentUserId) {
-               isAssignedToMe = true;
-               assignedCounselorName = usersMap[currentUserId]?.nama || 'Anda';
-            } else {
-              try {
-                // Pengecekan versi lama (jika konselor_id tidak ada di body dokumen)
-                const konselorSnap = await getDocs(collection(db, `laporan/${reportId}/konselor`));
-                if (!konselorSnap.empty) {
-                  const assignmentData = konselorSnap.docs[0].data();
-                  if (assignmentData.konselor_id === currentUserId) {
-                    isAssignedToMe = true;
-                    assignedCounselorName = usersMap[currentUserId]?.nama || 'Anda';
-                  }
+        for (const docSnap of laporanSnap.docs) {
+          const reportId = docSnap.id;
+          const data = docSnap.data();
+          
+          let isAssignedToMe = false;
+          let assignedCounselorName = null;
+          
+          // Mengecek penugasan konselor
+          if (data.konselor_id && data.konselor_id === currentUserId) {
+             isAssignedToMe = true;
+             assignedCounselorName = usersMap[currentUserId]?.nama || 'Anda';
+          } else {
+            try {
+              const konselorSnap = await getDocs(collection(db, `laporan/${reportId}/konselor`));
+              if (!konselorSnap.empty) {
+                const assignmentData = konselorSnap.docs[0].data();
+                if (assignmentData.konselor_id === currentUserId) {
+                  isAssignedToMe = true;
+                  assignedCounselorName = usersMap[currentUserId]?.nama || 'Anda';
                 }
-              } catch (e) { console.error("Gagal load subkoleksi konselor", e); }
-            }
-
-            if (isAssignedToMe) {
-              let reporterName = "Pengguna Anonim";
-              let reporterPhone = "-";
-              let reporterEdu = "-";
-              let reporterAge = "-";
-
-              if (data.user_id && usersMap[data.user_id]) {
-                const uData = usersMap[data.user_id];
-                reporterName = uData.nama || "Pengguna Anonim";
-                reporterPhone = uData.no_hp || uData.phone || "-";
-                reporterEdu = uData.tingkat_pendidikan || uData.pendidikan || "-";
-                reporterAge = calculateAge(uData.tanggal_lahir);
               }
-
-              // Load tanggapan logbook (Agar logbook ter-update realtime)
-              const responses = [];
-              try {
-                const tanggapanRef = collection(db, `laporan/${reportId}/tanggapan`);
-                const qTanggapan = query(tanggapanRef, orderBy("created_at", "asc"));
-                const tanggapanSnap = await getDocs(qTanggapan);
-                
-                for (const tDoc of tanggapanSnap.docs) {
-                  const tData = tDoc.data();
-                  let responderName = "Konselor";
-                  if (tData.konselor_id && usersMap[tData.konselor_id]) {
-                    responderName = usersMap[tData.konselor_id].nama;
-                  }
-                  responses.push({
-                    id: tDoc.id,
-                    message: tData.isi_tanggapan,
-                    createdBy: responderName,
-                    createdAt: tData.created_at ? tData.created_at.toDate() : new Date()
-                  });
-                }
-              } catch (e) { console.error("Gagal load tanggapan", e); }
-
-              fetchedData.push({
-                id: reportId,
-                ...data,
-                reporterName,
-                reporterPhone,
-                reporterEdu,
-                reporterAge,
-                assignedCounselorId: currentUserId,
-                assignedCounselorName,
-                responses,
-                dateFormatted: data.created_at ? data.created_at.toDate().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'
-              });
-            }
+            } catch (e) { console.error("Gagal load konselor", e); }
           }
 
-          fetchedData.sort((a, b) => {
-             const aTime = a.created_at?.toMillis ? a.created_at.toMillis() : new Date(a.created_at).getTime();
-             const bTime = b.created_at?.toMillis ? b.created_at.toMillis() : new Date(b.created_at).getTime();
-             return bTime - aTime;
-          });
-          setComplaints(fetchedData);
-          setLoading(false);
-        });
+          // HANYA AMBIL JIKA DITUGASKAN KE KONSELOR INI
+          if (isAssignedToMe) {
+            let reporterName = "Pengguna Anonim";
+            let reporterPhone = "-";
+            let reporterEdu = "-";
+            let reporterAge = "-";
 
+            if (data.user_id && usersMap[data.user_id]) {
+              const uData = usersMap[data.user_id];
+              reporterName = uData.nama || "Pengguna Anonim";
+              reporterPhone = uData.no_hp || uData.phone || "-";
+              reporterEdu = uData.tingkat_pendidikan || uData.pendidikan || "-";
+              reporterAge = calculateAge(uData.tanggal_lahir);
+            }
+
+            const responses = [];
+            try {
+              const tanggapanRef = collection(db, `laporan/${reportId}/tanggapan`);
+              const q = query(tanggapanRef, orderBy("created_at", "asc"));
+              const tanggapanSnap = await getDocs(q);
+              
+              for (const tDoc of tanggapanSnap.docs) {
+                const tData = tDoc.data();
+                let responderName = "Konselor";
+                if (tData.konselor_id && usersMap[tData.konselor_id]) {
+                  responderName = usersMap[tData.konselor_id].nama;
+                }
+                responses.push({
+                  id: tDoc.id,
+                  message: tData.isi_tanggapan,
+                  createdBy: responderName,
+                  createdAt: tData.created_at ? tData.created_at.toDate() : new Date()
+                });
+              }
+            } catch (e) { console.error("Gagal load tanggapan", e); }
+
+            fetchedData.push({
+              id: reportId,
+              ...data,
+              reporterName,
+              reporterPhone,
+              reporterEdu,
+              reporterAge,
+              assignedCounselorId: currentUserId,
+              assignedCounselorName,
+              responses,
+              dateFormatted: data.created_at ? data.created_at.toDate().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'
+            });
+          }
+        }
+
+        fetchedData.sort((a, b) => {
+           const aTime = a.created_at?.toMillis ? a.created_at.toMillis() : new Date(a.created_at).getTime();
+           const bTime = b.created_at?.toMillis ? b.created_at.toMillis() : new Date(b.created_at).getTime();
+           return bTime - aTime;
+        });
+        setComplaints(fetchedData);
       } catch (error) {
-        console.error("Error setting up complaints listener:", error);
-        toast.error("Gagal memuat data laporan secara realtime.");
+        console.error("Error fetching complaints:", error);
+        toast.error("Gagal memuat data laporan.");
+      } finally {
         setLoading(false);
       }
     };
 
-    setupRealtimeData();
+    fetchComplaintsData();
+  }, [refreshTrigger]);
 
-    return () => {
-      if (unsubscribeLaporan) unsubscribeLaporan();
-    };
-  }, [currentUserId]);
+  const currentUserId = auth.currentUser?.uid;
+  const complaintId = selectedComplaint?.id;
 
-  // Real-time Listener untuk Live Chat Konselor
+  // Real-time Listener untuk Live Chat & Typing Indicator (PERBAIKAN INFINITE LOOP)
   useEffect(() => {
     let unsubscribeChat;
     let unsubscribeTyping;
     
-    if ((activeModal === 'detail' || activeModal === 'chat') && selectedComplaint) {
+    // Bergantung pada complaintId, bukan seluruh object selectedComplaint
+    if ((activeModal === 'detail' || activeModal === 'chat') && complaintId) {
       // Listener untuk pesan chat
-      const chatRef = collection(db, `laporan/${selectedComplaint.id}/chat`);
+      const chatRef = collection(db, `laporan/${complaintId}/chat`);
       const q = query(chatRef, orderBy("created_at", "asc"));
       
       unsubscribeChat = onSnapshot(q, (snapshot) => {
@@ -222,17 +224,19 @@ export default function KonselorComplaints() {
       });
 
       // Listener untuk mendeteksi apakah klien sedang mengetik
-      const reportRef = doc(db, 'laporan', selectedComplaint.id);
+      const reportRef = doc(db, 'laporan', complaintId);
       unsubscribeTyping = onSnapshot(reportRef, (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
           setIsClientTyping(data.is_masyarakat_typing || false);
           
-          // Sinkronisasi status laporan ketika modal terbuka (misal: client accept chat, update status dsb)
-          setSelectedComplaint(prev => ({
-            ...prev,
-            ...data,
-          }));
+          setSelectedComplaint(prev => {
+            if (!prev || prev.id !== complaintId) return prev;
+            return {
+              ...prev,
+              ...data,
+            };
+          });
         }
       });
     }
@@ -241,7 +245,7 @@ export default function KonselorComplaints() {
       if (unsubscribeChat) unsubscribeChat();
       if (unsubscribeTyping) unsubscribeTyping();
     };
-  }, [activeModal, selectedComplaint]);
+  }, [activeModal, complaintId]); // <- Diperbaiki agar tidak render ulang terus menerus
 
   // Filter Data (Hanya membedakan yang Sedang Ditangani dan Selesai)
   const displayedComplaints = complaints.filter(c => {
@@ -296,6 +300,7 @@ export default function KonselorComplaints() {
 
       toast.success('Catatan penanganan berhasil disimpan.');
       closeModal();
+      setRefreshTrigger(prev => prev + 1);
     } catch (error) {
       console.error("Gagal mengirim tanggapan:", error);
       toast.error('Gagal menyimpan catatan.');
@@ -344,6 +349,7 @@ export default function KonselorComplaints() {
       toast.success('Status kasus berhasil diperbarui.');
       setIsConfirmFinishOpen(false);
       closeModal();
+      setRefreshTrigger(prev => prev + 1);
     } catch (error) {
       console.error("Gagal update status:", error);
       toast.error('Gagal memperbarui status kasus.');
@@ -403,6 +409,9 @@ export default function KonselorComplaints() {
         chat_status: 'active',
         chat_started_at: serverTimestamp()
       });
+      
+      setSelectedComplaint(prev => ({ ...prev, chat_status: 'active' }));
+      setComplaints(prev => prev.map(c => c.id === selectedComplaint.id ? { ...c, chat_status: 'active' } : c));
       
       if (selectedComplaint.user_id) {
         await addDoc(collection(db, "notifikasi"), {
