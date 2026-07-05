@@ -10,7 +10,7 @@ export default function MasyarakatComplaints() {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   
-  // PERBAIKAN 1: Tambahkan State untuk Filter
+  // State untuk Filter
   const [filterStatus, setFilterStatus] = useState('Semua');
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
 
@@ -33,6 +33,7 @@ export default function MasyarakatComplaints() {
   const [chatMessages, setChatMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [isCounselorTyping, setIsCounselorTyping] = useState(false);
 
   // Counselor Profile States
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -137,7 +138,7 @@ export default function MasyarakatComplaints() {
     return () => unsubscribe();
   }, []);
 
-  // Real-time Listener untuk Live Chat
+  // Real-time Listener untuk Live Chat (Pesan)
   useEffect(() => {
     let unsubscribe;
     if ((isDetailOpen || isChatOpen) && selectedComplaint && selectedComplaint.chat_status === 'active') {
@@ -155,6 +156,24 @@ export default function MasyarakatComplaints() {
     }
     return () => {
       if (unsubscribe) unsubscribe();
+    };
+  }, [isDetailOpen, isChatOpen, selectedComplaint]);
+
+  // Real-time Listener untuk mendeteksi konselor mengetik
+  useEffect(() => {
+    let unsubscribeTyping;
+    if ((isDetailOpen || isChatOpen) && selectedComplaint && selectedComplaint.chat_status === 'active') {
+      const complaintRef = doc(db, 'laporan', selectedComplaint.id);
+      
+      unsubscribeTyping = onSnapshot(complaintRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setIsCounselorTyping(data.is_konselor_typing || false);
+        }
+      });
+    }
+    return () => {
+      if (unsubscribeTyping) unsubscribeTyping();
     };
   }, [isDetailOpen, isChatOpen, selectedComplaint]);
 
@@ -244,7 +263,7 @@ export default function MasyarakatComplaints() {
     }
   };
 
-  // --- PEMBARUAN KONFIGURASI STATUS BADGE ---
+  // Konfigurasi Status Badge
   const getStatusConfig = (status) => {
     switch (status?.toLowerCase()) {
       case 'menunggu': 
@@ -266,7 +285,7 @@ export default function MasyarakatComplaints() {
     }
   };
 
-  // PERBAIKAN 2: Logika Filtering Laporan
+  // Logika Filtering Laporan
   const filteredComplaints = complaints.filter(c => {
     const matchesSearch = c.judul?.toLowerCase().includes(searchTerm.toLowerCase());
     
@@ -374,6 +393,7 @@ export default function MasyarakatComplaints() {
               {chatMessages.length === 0 && (
                 <p className="text-center text-xs text-gray-400 mt-10 italic">Sesi chat telah dimulai. Sapa konselor Anda!</p>
               )}
+              
               {chatMessages.map(msg => (
                 <div key={msg.id} className={`flex ${msg.sender_id === auth.currentUser.uid ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[85%] p-3 rounded-2xl text-sm ${msg.sender_id === auth.currentUser.uid ? 'bg-[#4B2C82] text-white rounded-tr-none' : 'bg-white text-gray-800 border border-gray-200 rounded-tl-none'}`}>
@@ -384,6 +404,17 @@ export default function MasyarakatComplaints() {
                   </div>
                 </div>
               ))}
+
+              {/* Animasi Konselor Sedang Mengetik */}
+              {isCounselorTyping && (
+                <div className="flex justify-start">
+                  <div className="px-4 py-3 bg-white text-gray-800 border border-gray-200 rounded-2xl rounded-tl-none flex items-center gap-1.5 h-[42px] shadow-sm">
+                    <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                    <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                    <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                  </div>
+                </div>
+              )}
             </div>
             <form onSubmit={handleSendMessage} className="p-3 bg-white border-t border-gray-100 flex gap-2 shrink-0">
               <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Tulis pesan..." className="flex-1 bg-gray-50 border-none rounded-xl px-4 text-xs focus:ring-1 focus:ring-[#4B2C82]" />
@@ -415,7 +446,6 @@ export default function MasyarakatComplaints() {
               />
             </div>
             
-            {/* PERBAIKAN 3: Tombol Filter Menjadi Fungsional */}
             <div className="relative">
               <button 
                 onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
@@ -500,7 +530,6 @@ export default function MasyarakatComplaints() {
               const config = getStatusConfig(complaint.status_id);
               const StatusIcon = config.icon;
               
-              // Logika Timeline Dinamis
               const cStatus = complaint.status_id?.toLowerCase() || '';
               const isAssigned = ['diproses', 'telaah kasus', 'penjangkauan (home visit)', 'pendampingan layanan', 'selesai'].includes(cStatus);
               const isDone = cStatus === 'selesai';
@@ -566,10 +595,8 @@ export default function MasyarakatComplaints() {
                         </div>
                       </div>
 
-                      {/* TIMELINE DINAMIS */}
                       {!isRejected && (
                         <div className="mt-6 pt-6 border-t border-purple-50 flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
-                          {/* Tahap 1: Laporan Diterima (Selalu Aktif) */}
                           <div className="flex items-center gap-2 shrink-0">
                             <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center">
                               <CheckCircle className="w-3 h-3 text-white" />
@@ -579,7 +606,6 @@ export default function MasyarakatComplaints() {
                           
                           <div className={`w-8 h-[2px] mt-3 shrink-0 ${isAssigned ? 'bg-green-500' : 'bg-gray-200'}`} />
                           
-                          {/* Tahap 2: Verifikasi & Penugasan Konselor */}
                           <div className="flex items-center gap-2 shrink-0">
                             <div className={`w-6 h-6 rounded-full flex items-center justify-center ${isAssigned ? 'bg-green-500' : 'bg-[#4B2C82]'}`}>
                               {isAssigned ? <CheckCircle className="w-3 h-3 text-white" /> : <Clock className="w-3 h-3 text-white" />}
@@ -589,7 +615,6 @@ export default function MasyarakatComplaints() {
                           
                           <div className={`w-8 h-[2px] mt-3 shrink-0 ${isDone ? 'bg-green-500' : (isAssigned ? 'bg-[#4B2C82]' : 'bg-gray-200')}`} />
                           
-                          {/* Tahap 3: Penanganan Konselor (Diproses/Telaah/Penjangkauan dll) */}
                           <div className={`flex items-center gap-2 shrink-0 ${!isAssigned ? 'opacity-40' : ''}`}>
                             <div className={`w-6 h-6 rounded-full flex items-center justify-center ${isDone ? 'bg-green-500' : (isAssigned ? 'bg-[#4B2C82]' : 'bg-gray-200')}`}>
                               {isDone ? <CheckCircle className="w-3 h-3 text-white" /> : (isAssigned ? <ShieldCheck className="w-3 h-3 text-white" /> : null)}
@@ -601,7 +626,6 @@ export default function MasyarakatComplaints() {
 
                           <div className={`w-8 h-[2px] mt-3 shrink-0 ${isDone ? 'bg-green-500' : 'bg-gray-200'}`} />
 
-                          {/* Tahap 4: Selesai */}
                           <div className={`flex items-center gap-2 shrink-0 ${!isDone ? 'opacity-40' : ''}`}>
                             <div className={`w-6 h-6 rounded-full flex items-center justify-center ${isDone ? 'bg-green-500' : 'bg-gray-200'}`}>
                               {isDone ? <CheckCircle className="w-3 h-3 text-white" /> : null}

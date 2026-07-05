@@ -34,6 +34,17 @@ export default function KonselorComplaints() {
   const [newMessage, setNewMessage] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
 
+  // TAMBAHAN: State untuk fungsi Typing Indicator
+  const [isTyping, setIsTyping] = useState(false);
+  const [typingTimeoutId, setTypingTimeoutId] = useState(null);
+
+  // Bersihkan timeout saat komponen unmount
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutId) clearTimeout(typingTimeoutId);
+    };
+  }, [typingTimeoutId]);
+
   // Fungsi hitung umur
   const calculateAge = (birthDateData) => {
     if (!birthDateData) return '-';
@@ -377,6 +388,32 @@ export default function KonselorComplaints() {
     }
   };
 
+  // TAMBAHAN: Fungsi deteksi mengetik
+  const handleTyping = (e) => {
+    setNewMessage(e.target.value);
+    
+    if (!selectedComplaint || selectedComplaint.status_id === 'selesai') return;
+
+    // Jika belum tercatat mengetik, set Firestore jadi true
+    if (!isTyping) {
+      setIsTyping(true);
+      const reportRef = doc(db, 'laporan', selectedComplaint.id);
+      updateDoc(reportRef, { is_konselor_typing: true }).catch(console.error);
+    }
+
+    // Bersihkan timeout sebelumnya jika pengguna terus mengetik
+    if (typingTimeoutId) clearTimeout(typingTimeoutId);
+
+    // Set agar 2 detik setelah berhenti mengetik, status kembali false
+    const timeout = setTimeout(() => {
+      setIsTyping(false);
+      const reportRef = doc(db, 'laporan', selectedComplaint.id);
+      updateDoc(reportRef, { is_konselor_typing: false }).catch(console.error);
+    }, 2000);
+    
+    setTypingTimeoutId(timeout);
+  };
+
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim() || !selectedComplaint) return;
@@ -390,6 +427,12 @@ export default function KonselorComplaints() {
         sender_role: 'konselor'
       });
       setNewMessage('');
+      
+      // Reset typing status ketika pesan terkirim
+      if (typingTimeoutId) clearTimeout(typingTimeoutId);
+      setIsTyping(false);
+      await updateDoc(doc(db, 'laporan', selectedComplaint.id), { is_konselor_typing: false });
+      
     } catch (error) {
       console.error(error);
       toast.error('Gagal mengirim pesan.');
@@ -403,6 +446,13 @@ export default function KonselorComplaints() {
   };
 
   const closeModal = () => {
+    // Reset typing state di database jika menutup modal chat
+    if (activeModal === 'chat' && selectedComplaint) {
+      if (typingTimeoutId) clearTimeout(typingTimeoutId);
+      setIsTyping(false);
+      updateDoc(doc(db, 'laporan', selectedComplaint.id), { is_konselor_typing: false }).catch(console.error);
+    }
+
     setActiveModal(null);
     setSelectedComplaint(null);
     setResponseText('');
@@ -936,8 +986,21 @@ export default function KonselorComplaints() {
                       </div>
                     ) : (
                       <form onSubmit={handleSendMessage} className="p-3 bg-white border-t border-gray-100 flex gap-2 shrink-0">
-                        <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Balas pesan klien..." className="flex-1 bg-gray-50 border-none rounded-xl px-4 text-xs focus:ring-1 focus:ring-[#4B2C82] transition-all" />
-                        <button type="submit" disabled={!newMessage.trim()} className="w-10 h-10 bg-[#4B2C82] text-white rounded-xl flex items-center justify-center hover:bg-purple-900 disabled:opacity-50 hover:scale-105 active:scale-95 transition-all"><Send className="w-4 h-4" /></button>
+                        {/* INPUT CHAT TELAH DIUBAH MENJADI handleTyping */}
+                        <input 
+                          type="text" 
+                          value={newMessage} 
+                          onChange={handleTyping} 
+                          placeholder="Balas pesan klien..." 
+                          className="flex-1 bg-gray-50 border-none rounded-xl px-4 text-xs focus:ring-1 focus:ring-[#4B2C82] transition-all" 
+                        />
+                        <button 
+                          type="submit" 
+                          disabled={!newMessage.trim()} 
+                          className="w-10 h-10 bg-[#4B2C82] text-white rounded-xl flex items-center justify-center hover:bg-purple-900 disabled:opacity-50 hover:scale-105 active:scale-95 transition-all"
+                        >
+                          <Send className="w-4 h-4" />
+                        </button>
                       </form>
                     )}
                   </div>
