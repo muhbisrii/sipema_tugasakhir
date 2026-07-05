@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { collection, getDocs, doc, getDoc, addDoc, updateDoc, serverTimestamp, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs, doc, addDoc, updateDoc, serverTimestamp, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../../firebase';
 import { MessageSquare, Phone, CheckCircle, Loader2, X, AlertTriangle, User, Clock, Eye, Calendar, Send, Info, BookOpen } from 'lucide-react';
 import { toast } from 'sonner';
@@ -38,10 +38,10 @@ export default function KonselorComplaints() {
   const [isTyping, setIsTyping] = useState(false);
   const [typingTimeoutId, setTypingTimeoutId] = useState(null);
   
-  // TAMBAHAN: State untuk mendeteksi apakah klien sedang mengetik
+  // State untuk mendeteksi apakah klien sedang mengetik
   const [isClientTyping, setIsClientTyping] = useState(false);
 
-  // TAMBAHAN: Auto-scroll referensi
+  // Auto-scroll referensi
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -89,7 +89,7 @@ export default function KonselorComplaints() {
     }
   };
 
-  // Fetch Data Laporan (HANYA YANG DI-ASSIGN KE KONSELOR INI)
+  // Fetch Data Laporan (DIOPTIMASI UNTUK KECEPATAN TINGGI)
   useEffect(() => {
     const fetchComplaintsData = async () => {
       if (!auth.currentUser) return;
@@ -97,6 +97,14 @@ export default function KonselorComplaints() {
       
       setLoading(true);
       try {
+        // A. Tarik semua pengguna ke dalam memori
+        const usersSnap = await getDocs(collection(db, "users"));
+        const usersMap = {};
+        usersSnap.forEach(doc => {
+          usersMap[doc.id] = doc.data();
+        });
+
+        // B. Tarik laporan
         const laporanSnap = await getDocs(collection(db, "laporan"));
         const fetchedData = [];
 
@@ -107,17 +115,23 @@ export default function KonselorComplaints() {
           let isAssignedToMe = false;
           let assignedCounselorName = null;
           
-          try {
-            const konselorSnap = await getDocs(collection(db, `laporan/${reportId}/konselor`));
-            if (!konselorSnap.empty) {
-              const assignmentData = konselorSnap.docs[0].data();
-              if (assignmentData.konselor_id === currentUserId) {
-                isAssignedToMe = true;
-                const cSnap = await getDoc(doc(db, "users", currentUserId));
-                if (cSnap.exists()) assignedCounselorName = cSnap.data().nama;
+          // Mengecek penugasan konselor
+          // Coba cara lama dulu (dari subkoleksi) jika belum ada 'konselor_id' di laporan
+          if (data.konselor_id && data.konselor_id === currentUserId) {
+             isAssignedToMe = true;
+             assignedCounselorName = usersMap[currentUserId]?.nama || 'Anda';
+          } else {
+            try {
+              const konselorSnap = await getDocs(collection(db, `laporan/${reportId}/konselor`));
+              if (!konselorSnap.empty) {
+                const assignmentData = konselorSnap.docs[0].data();
+                if (assignmentData.konselor_id === currentUserId) {
+                  isAssignedToMe = true;
+                  assignedCounselorName = usersMap[currentUserId]?.nama || 'Anda';
+                }
               }
-            }
-          } catch (e) { console.error("Gagal load konselor", e); }
+            } catch (e) { console.error("Gagal load konselor", e); }
+          }
 
           // HANYA AMBIL JIKA DITUGASKAN KE KONSELOR INI
           if (isAssignedToMe) {
@@ -126,19 +140,16 @@ export default function KonselorComplaints() {
             let reporterEdu = "-";
             let reporterAge = "-";
 
-            if (data.user_id) {
-              try {
-                const userSnap = await getDoc(doc(db, "users", data.user_id));
-                if (userSnap.exists()) {
-                  const uData = userSnap.data();
-                  reporterName = uData.nama || "Pengguna Anonim";
-                  reporterPhone = uData.no_hp || uData.phone || "-";
-                  reporterEdu = uData.tingkat_pendidikan || uData.pendidikan || "-";
-                  reporterAge = calculateAge(uData.tanggal_lahir);
-                }
-              } catch (e) { console.error("Gagal load user", e); }
+            // Mencocokkan data pelapor dari memori
+            if (data.user_id && usersMap[data.user_id]) {
+              const uData = usersMap[data.user_id];
+              reporterName = uData.nama || "Pengguna Anonim";
+              reporterPhone = uData.no_hp || uData.phone || "-";
+              reporterEdu = uData.tingkat_pendidikan || uData.pendidikan || "-";
+              reporterAge = calculateAge(uData.tanggal_lahir);
             }
 
+            // Memuat riwayat tanggapan
             const responses = [];
             try {
               const tanggapanRef = collection(db, `laporan/${reportId}/tanggapan`);
@@ -148,9 +159,8 @@ export default function KonselorComplaints() {
               for (const tDoc of tanggapanSnap.docs) {
                 const tData = tDoc.data();
                 let responderName = "Konselor";
-                if (tData.konselor_id) {
-                  const rSnap = await getDoc(doc(db, "users", tData.konselor_id));
-                  if (rSnap.exists()) responderName = rSnap.data().nama;
+                if (tData.konselor_id && usersMap[tData.konselor_id]) {
+                  responderName = usersMap[tData.konselor_id].nama;
                 }
                 responses.push({
                   id: tDoc.id,
