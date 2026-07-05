@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, doc, getDoc, updateDoc, deleteDoc, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, deleteDoc, addDoc, serverTimestamp, query, where, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../../firebase';
 import { Eye, Trash2, Search, Filter, Loader2, X, AlertTriangle, FileDown, Printer, UserCheck, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
@@ -15,15 +15,14 @@ export default function AdminComplaints() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Modal States
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
-  const [isAssignOpen, setIsAssignOpen] = useState(false); // Modal Assign Konselor
+  const [isAssignOpen, setIsAssignOpen] = useState(false); 
   
-  // TAMBAHAN: State Modal Tolak Laporan
+  // State Modal Tolak Laporan
   const [isRejectOpen, setIsRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [isRejecting, setIsRejecting] = useState(false);
@@ -69,77 +68,103 @@ export default function AdminComplaints() {
     fetchCounselors();
   }, []);
 
-  // 2. Fetch Data Laporan
+  // 2. Fetch Data Laporan REAL-TIME (onSnapshot) & ANTI-LEMOT (Caching)
   useEffect(() => {
-    const fetchComplaints = async () => {
+    let unsubscribeLaporan;
+
+    const setupRealtimeAdmin = async () => {
       setLoading(true);
       try {
-        const querySnapshot = await getDocs(collection(db, "laporan"));
-        
-        const fetchedData = await Promise.all(querySnapshot.docs.map(async (docSnap) => {
-          const data = docSnap.data();
-          let reporterName = "Pengguna Tidak Diketahui";
-          let reporterEmail = "-";
-          let reporterGender = "-";
-          let reporterAge = "-";
+        // A. Caching User (Ambil 1 kali agar tidak membebani database)
+        const usersSnap = await getDocs(collection(db, "users"));
+        const usersMap = {};
+        usersSnap.forEach(doc => {
+          usersMap[doc.id] = doc.data();
+        });
 
-          // Cek Data Pelapor
-          if (data.user_id) {
-            try {
-              const userSnap = await getDoc(doc(db, "users", data.user_id));
-              if (userSnap.exists()) {
-                const uData = userSnap.data();
-                reporterName = uData.nama || reporterName;
-                reporterEmail = uData.email || reporterEmail;
-                reporterGender = uData.jenis_kelamin || "-";
-                
-                if (uData.tanggal_lahir) {
-                  const birthDate = new Date(uData.tanggal_lahir);
-                  const today = new Date();
-                  let age = today.getFullYear() - birthDate.getFullYear();
-                  const m = today.getMonth() - birthDate.getMonth();
-                  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
-                  reporterAge = age;
-                }
+        // B. Listener Real-time
+        const q = query(collection(db, "laporan"));
+        unsubscribeLaporan = onSnapshot(q, async (snapshot) => {
+          const fetchedData = [];
+
+          for (const docSnap of snapshot.docs) {
+            const data = docSnap.data();
+            const reportId = docSnap.id;
+
+            let reporterName = "Pengguna Tidak Diketahui";
+            let reporterEmail = "-";
+            let reporterGender = "-";
+            let reporterAge = "-";
+
+            // Cek Data Pelapor dari memori
+            if (data.user_id && usersMap[data.user_id]) {
+              const uData = usersMap[data.user_id];
+              reporterName = uData.nama || reporterName;
+              reporterEmail = uData.email || reporterEmail;
+              reporterGender = uData.jenis_kelamin || "-";
+              
+              if (uData.tanggal_lahir) {
+                const birthDate = new Date(uData.tanggal_lahir);
+                const today = new Date();
+                let age = today.getFullYear() - birthDate.getFullYear();
+                const m = today.getMonth() - birthDate.getMonth();
+                if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
+                reporterAge = age;
               }
-            } catch (err) { console.error("Gagal fetch user:", err); }
+            }
+
+            // Cek Data Konselor yang Ditugaskan
+            let assignedCounselorName = null;
+            if (data.konselor_id && usersMap[data.konselor_id]) {
+              assignedCounselorName = usersMap[data.konselor_id].nama;
+            } else {
+              try {
+                const kSnap = await getDocs(collection(db, `laporan/${reportId}/konselor`));
+                if (!kSnap.empty) {
+                  const kData = kSnap.docs[0].data();
+                  if (usersMap[kData.konselor_id]) {
+                    assignedCounselorName = usersMap[kData.konselor_id].nama;
+                  }
+                }
+              // eslint-disable-next-line no-unused-vars
+              } catch (e) { /* empty */ }
+            }
+
+            fetchedData.push({ 
+              id: reportId, 
+              ...data, 
+              reporterName, 
+              reporterEmail,
+              reporterGender,
+              reporterAge,
+              assignedCounselorName
+            });
           }
 
-          // Cek Data Konselor yang Ditugaskan
-          let assignedCounselorName = null;
-          try {
-            const kSnap = await getDocs(collection(db, `laporan/${docSnap.id}/konselor`));
-            if (!kSnap.empty) {
-              const kData = kSnap.docs[0].data();
-              const cSnap = await getDoc(doc(db, "users", kData.konselor_id));
-              if (cSnap.exists()) assignedCounselorName = cSnap.data().nama;
-            }
-          // eslint-disable-next-line no-unused-vars
-          } catch (e) { /* empty */ }
-
-          return { 
-            id: docSnap.id, 
-            ...data, 
-            reporterName, 
-            reporterEmail,
-            reporterGender,
-            reporterAge,
-            assignedCounselorName
-          };
-        }));
-
-        fetchedData.sort((a, b) => b.created_at?.toMillis() - a.created_at?.toMillis());
-        setComplaints(fetchedData);
-      // eslint-disable-next-line no-unused-vars
+          fetchedData.sort((a, b) => b.created_at?.toMillis() - a.created_at?.toMillis());
+          setComplaints(fetchedData);
+          setLoading(false);
+          
+          // Sinkronisasi data ke modal yang sedang terbuka
+          setSelectedComplaint(prev => {
+            if (!prev) return prev;
+            const updated = fetchedData.find(c => c.id === prev.id);
+            return updated ? updated : prev;
+          });
+        });
       } catch (error) {
         toast.error("Terjadi kesalahan saat memuat data laporan.");
-      } finally {
+        console.error(error);
         setLoading(false);
       }
     };
 
-    fetchComplaints();
-  }, [refreshTrigger]);
+    setupRealtimeAdmin();
+
+    return () => {
+      if (unsubscribeLaporan) unsubscribeLaporan();
+    };
+  }, []);
 
   const filteredComplaints = complaints.filter(complaint => {
     const matchesSearch = 
@@ -208,7 +233,6 @@ export default function AdminComplaints() {
       doc.text("DINAS PEMBERDAYAAN PEREMPUAN DAN PERLINDUNGAN ANAK", pageWidth / 2, 23, { align: 'center' });
       doc.setFontSize(10); doc.setFont("helvetica", "normal");
       
-      // ALAMAT
       doc.text("Gedung Capil, Jl. Sultan Adam No.49, Surgi Mufti, Kec. Banjarmasin Utara, Kota Banjarmasin, Kalimantan Selatan 70122", pageWidth / 2, 29, { align: 'center' });
 
       doc.setLineWidth(1.0); doc.line(15, 36, pageWidth - 15, 36);
@@ -268,7 +292,7 @@ export default function AdminComplaints() {
     setIsDeleting(true);
     try {
       await deleteDoc(doc(db, "laporan", complaintToDelete.id));
-      setComplaints(prev => prev.filter(c => c.id !== complaintToDelete.id));
+      // State complaints otomatis terupdate berkat onSnapshot
       toast.success("Laporan berhasil dihapus secara permanen.");
       setIsDeleteOpen(false); setComplaintToDelete(null);
     // eslint-disable-next-line no-unused-vars
@@ -286,14 +310,12 @@ export default function AdminComplaints() {
     try {
       const laporanRef = doc(db, "laporan", selectedComplaint.id);
 
-      // 1. Update status dan alasan
       await updateDoc(laporanRef, { 
         status_id: 'ditolak', 
         alasan_penolakan: rejectReason,
         updated_at: serverTimestamp() 
       });
       
-      // 2. Catat riwayat
       await addDoc(collection(laporanRef, "riwayat_status"), {
         status_id: 'ditolak', 
         diubah_oleh: auth.currentUser.uid, 
@@ -301,7 +323,6 @@ export default function AdminComplaints() {
         changed_at: serverTimestamp()
       });
 
-      // 3. Kirim notifikasi ke pelapor
       if (selectedComplaint.user_id) {
         await addDoc(collection(db, "notifikasi"), {
           target_user_id: selectedComplaint.user_id,
@@ -318,7 +339,6 @@ export default function AdminComplaints() {
       setIsRejectOpen(false);
       setRejectReason('');
       setSelectedComplaint(null);
-      setRefreshTrigger(prev => prev + 1); // Refresh tabel
     } catch (error) {
       console.error(error);
       toast.error("Gagal menolak laporan.");
@@ -335,23 +355,23 @@ export default function AdminComplaints() {
     }
     setIsAssigning(true);
     try {
-      // 1. Catat ke subcollection konselor
       await addDoc(collection(db, `laporan/${selectedComplaint.id}/konselor`), {
         konselor_id: selectedCounselorId,
         assigned_at: serverTimestamp(),
         assigned_by: auth.currentUser.uid
       });
 
-      // 2. Update status jadi diproses
       const laporanRef = doc(db, "laporan", selectedComplaint.id);
-      await updateDoc(laporanRef, { status_id: 'diproses', updated_at: serverTimestamp() });
+      await updateDoc(laporanRef, { 
+        status_id: 'diproses', 
+        konselor_id: selectedCounselorId, 
+        updated_at: serverTimestamp() 
+      });
       
-      // 3. Catat riwayat
       await addDoc(collection(laporanRef, "riwayat_status"), {
         status_id: 'diproses', diubah_oleh: auth.currentUser.uid, changed_at: serverTimestamp()
       });
 
-      // 4. Notifikasi ke Konselor
       await addDoc(collection(db, "notifikasi"), {
         target_user_id: selectedCounselorId,
         title: "Penugasan Kasus Baru",
@@ -362,7 +382,6 @@ export default function AdminComplaints() {
         created_at: serverTimestamp()
       });
 
-      // 5. Notifikasi ke Pelapor
       if (selectedComplaint.user_id) {
         await addDoc(collection(db, "notifikasi"), {
           target_user_id: selectedComplaint.user_id,
@@ -378,7 +397,6 @@ export default function AdminComplaints() {
       toast.success("Berhasil! Kasus telah diteruskan ke Konselor yang dipilih.");
       setIsAssignOpen(false);
       setSelectedCounselorId('');
-      setRefreshTrigger(prev => prev + 1); // Refresh tabel
     } catch (error) {
       toast.error("Gagal meneruskan kasus ke konselor.");
       console.error(error);
@@ -444,23 +462,19 @@ export default function AdminComplaints() {
           </div>
         </div>
 
-        {/* Table - DENGAN PERBAIKAN STICKY KOLOM AKSI */}
+        {/* Table - SCROLLBAR DI ATAS */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          {/* Container ini tetap bisa di-scroll ke kanan/kiri untuk melihat kolom yang panjang */}
-          <div className="overflow-x-auto">
-            {/* Berikan min-width agar tampilan rapi meski di layar sempit */}
-            <table className="w-full text-left min-w-[800px]"> 
+          {/* Trik rotateX 180 untuk memindahkan scrollbar ke atas */}
+          <div className="overflow-x-auto" style={{ transform: 'rotateX(180deg)' }}>
+            {/* Tabel diputar lagi agar tulisannya normal (tidak terbalik) */}
+            <table className="w-full text-left min-w-[1000px]" style={{ transform: 'rotateX(180deg)' }}> 
               <thead className="bg-[#4B2C82]/5 border-b border-purple-100">
                 <tr>
                   <th className="py-4 px-6 text-xs font-black text-[#4B2C82] uppercase tracking-widest whitespace-nowrap">Tanggal</th>
                   <th className="py-4 px-6 text-xs font-black text-[#4B2C82] uppercase tracking-widest whitespace-nowrap">Pelapor & Umur</th>
                   <th className="py-4 px-6 text-xs font-black text-[#4B2C82] uppercase tracking-widest">Kategori & Judul</th>
                   <th className="py-4 px-6 text-xs font-black text-[#4B2C82] uppercase tracking-widest whitespace-nowrap">Status & Penanganan</th>
-                  
-                  {/* Kunci kolom Aksi agar lengket di kanan */}
-                  <th className="py-4 px-6 text-xs font-black text-[#4B2C82] uppercase tracking-widest text-right whitespace-nowrap sticky right-0 bg-[#f4f2f9] shadow-[-5px_0_10px_rgba(0,0,0,0.02)] border-l border-purple-100/50 z-10">
-                    Aksi
-                  </th>
+                  <th className="py-4 px-6 text-xs font-black text-[#4B2C82] uppercase tracking-widest text-right whitespace-nowrap">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -513,10 +527,8 @@ export default function AdminComplaints() {
                         </div>
                       </td>
 
-                      {/* Kunci kolom Aksi agar lengket di kanan */}
-                      <td className="py-4 px-6 sticky right-0 bg-white group-hover:bg-[#fcfcff] shadow-[-5px_0_10px_rgba(0,0,0,0.02)] transition-colors z-10">
+                      <td className="py-4 px-6">
                         <div className="flex items-center justify-end gap-2">
-                          {/* TOMBOL ACTION (Assign & Tolak) - Hanya muncul jika status Menunggu */}
                           {complaint.status_id === 'menunggu' && (
                             <div className="flex items-center gap-2 mr-2 border-r border-gray-200 pr-4">
                               <button 
@@ -806,8 +818,8 @@ export default function AdminComplaints() {
       {/* 4. Modal Detail */}
       <AnimatePresence>
         {isDetailOpen && selectedComplaint && (
-          <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+          <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 sm:p-6 bg-gray-900/60 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh] sm:max-h-[90vh]">
               <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50 shrink-0">
                 <h3 className="text-lg font-black text-[#4B2C82]">Detail Pengaduan</h3>
                 <button onClick={() => setIsDetailOpen(false)} className="text-gray-400 hover:text-red-500 transition-colors"><X className="w-6 h-6" /></button>
