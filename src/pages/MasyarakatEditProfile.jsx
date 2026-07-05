@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { updatePassword, deleteUser } from 'firebase/auth';
 import { auth, db } from '../firebase';
-import { AlertCircle, User, Phone, Mail, CreditCard, Lock, ShieldAlert, CheckCircle, Loader2, AlertTriangle, Calendar } from 'lucide-react';
+import { AlertCircle, User, Phone, Mail, CreditCard, Lock, ShieldAlert, CheckCircle, Loader2, AlertTriangle, Calendar, Users, GraduationCap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 
@@ -20,7 +20,9 @@ export default function MasyarakatEditProfile() {
     nik: '',
     no_hp: '',
     email: '',
-    tanggal_lahir: '', // State baru untuk tanggal lahir
+    tanggal_lahir: '',
+    jenis_kelamin: '', // State baru untuk jenis kelamin
+    tingkat_pendidikan: '', // State baru untuk tingkat pendidikan
   });
 
   const [password, setPassword] = useState('');
@@ -39,7 +41,9 @@ export default function MasyarakatEditProfile() {
               nik: data.nik || '',
               no_hp: data.no_hp || '',
               email: data.email || auth.currentUser.email || '',
-              tanggal_lahir: data.tanggal_lahir || '', // Ambil dari Firestore
+              tanggal_lahir: data.tanggal_lahir || '',
+              jenis_kelamin: data.jenis_kelamin || '', // Ambil dari Firestore
+              tingkat_pendidikan: data.tingkat_pendidikan || '', // Ambil dari Firestore
             });
           }
         } catch (error) {
@@ -71,7 +75,9 @@ export default function MasyarakatEditProfile() {
         nama: formData.nama,
         nik: formData.nik,
         no_hp: formData.no_hp,
-        tanggal_lahir: formData.tanggal_lahir, // Update ke Firestore
+        tanggal_lahir: formData.tanggal_lahir,
+        jenis_kelamin: formData.jenis_kelamin, // Update ke Firestore
+        tingkat_pendidikan: formData.tingkat_pendidikan, // Update ke Firestore
         updated_at: new Date()
       });
 
@@ -162,6 +168,8 @@ export default function MasyarakatEditProfile() {
             
             <div className="p-8">
               <form onSubmit={handleUpdateProfile} className="space-y-6">
+                
+                {/* Baris 1: Nama & NIK */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Nama Lengkap</label>
@@ -172,7 +180,7 @@ export default function MasyarakatEditProfile() {
                         name="nama" 
                         value={formData.nama} 
                         onChange={handleInputChange} 
-                        className="w-full pl-12 pr-4 h-14 rounded-2xl bg-gray-50 border border-gray-200 focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] outline-none transition-all" 
+                        className="w-full pl-12 pr-4 h-14 rounded-2xl bg-gray-50 border border-gray-200 focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] outline-none transition-all text-gray-700" 
                       />
                     </div>
                   </div>
@@ -185,12 +193,13 @@ export default function MasyarakatEditProfile() {
                         name="nik" 
                         value={formData.nik} 
                         onChange={handleInputChange} 
-                        className="w-full pl-12 pr-4 h-14 rounded-2xl bg-gray-50 border border-gray-200 focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] outline-none transition-all" 
+                        className="w-full pl-12 pr-4 h-14 rounded-2xl bg-gray-50 border border-gray-200 focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] outline-none transition-all text-gray-700" 
                       />
                     </div>
                   </div>
                 </div>
 
+                {/* Baris 2: No HP & Email */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">No. Handphone</label>
@@ -201,7 +210,7 @@ export default function MasyarakatEditProfile() {
                         name="no_hp" 
                         value={formData.no_hp} 
                         onChange={handleInputChange} 
-                        className="w-full pl-12 pr-4 h-14 rounded-2xl bg-gray-50 border border-gray-200 focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] outline-none transition-all" 
+                        className="w-full pl-12 pr-4 h-14 rounded-2xl bg-gray-50 border border-gray-200 focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] outline-none transition-all text-gray-700" 
                       />
                     </div>
                   </div>
@@ -219,7 +228,7 @@ export default function MasyarakatEditProfile() {
                   </div>
                 </div>
 
-                {/* TAMBAHAN: Input Tanggal Lahir (Kiri) */}
+                {/* Baris 3: Tanggal Lahir & Jenis Kelamin */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Tanggal Lahir</label>
@@ -232,6 +241,45 @@ export default function MasyarakatEditProfile() {
                         onChange={handleInputChange} 
                         className="w-full pl-12 pr-4 h-14 rounded-2xl bg-gray-50 border border-gray-200 focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] outline-none transition-all text-gray-700" 
                       />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Jenis Kelamin</label>
+                    <div className="relative">
+                      <Users className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300" />
+                      <select 
+                        name="jenis_kelamin" 
+                        value={formData.jenis_kelamin} 
+                        onChange={handleInputChange} 
+                        className="w-full pl-12 pr-4 h-14 rounded-2xl bg-gray-50 border border-gray-200 focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] outline-none transition-all text-gray-700" 
+                      >
+                        <option value="" disabled>-- Pilih Jenis Kelamin --</option>
+                        <option value="Laki-laki">Laki-laki</option>
+                        <option value="Perempuan">Perempuan</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Baris 4: Tingkat Pendidikan */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Tingkat Pendidikan</label>
+                    <div className="relative">
+                      <GraduationCap className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300" />
+                      <select 
+                        name="tingkat_pendidikan" 
+                        value={formData.tingkat_pendidikan} 
+                        onChange={handleInputChange} 
+                        className="w-full pl-12 pr-4 h-14 rounded-2xl bg-gray-50 border border-gray-200 focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] outline-none transition-all text-gray-700" 
+                      >
+                        <option value="" disabled>-- Pilih Tingkat Pendidikan --</option>
+                        <option value="SD Sederajat">SD Sederajat</option>
+                        <option value="SMP Sederajat">SMP Sederajat</option>
+                        <option value="SMA Sederajat">SMA Sederajat</option>
+                        <option value="Diploma (D3)">Diploma (D3)</option>
+                        <option value="Sarjana (S1)">Sarjana (S1)</option>
+                      </select>
                     </div>
                   </div>
                 </div>
@@ -309,7 +357,6 @@ export default function MasyarakatEditProfile() {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              /* Hapus overflow-hidden di sini agar ikon bisa keluar dari kotak */
               className="bg-white rounded-3xl shadow-2xl w-full max-w-md relative mt-8"
             >
               <div className="p-8 text-center space-y-6">
