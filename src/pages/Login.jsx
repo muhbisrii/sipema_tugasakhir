@@ -38,28 +38,48 @@ export default function Login() {
     setLoading(true);   
 
     try {
-      // 1. Autentikasi User
+      // 1. Autentikasi User di Firebase Auth
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // 2. Ambil data user dari Firestore TERLEBIH DAHULU untuk mengetahui Role-nya
+      // 2. Ambil data user dari Firestore untuk cek eksistensi, status, dan role
       const userDocRef = doc(db, 'users', user.uid);
       const userDocSnap = await getDoc(userDocRef);
 
+      // ==========================================
+      // PENGECEKAN STATUS AKUN (DIHAPUS ATAU DIBLOKIR)
+      // ==========================================
+      
+      // Kasus 1: Data pengguna tidak ditemukan di Firestore (Sudah dihapus Admin)
+      if (!userDocSnap.exists()) {
+        await signOut(auth); // Logout paksa
+        setErrorMsg("Akun Anda tidak ditemukan atau telah dihapus dari sistem.");
+        setLoading(false);
+        return; // Hentikan proses eksekusi kode
+      }
+
+      const userData = userDocSnap.data();
+
+      // Kasus 2: Status akun diset menjadi 'nonaktif' (Diblokir Admin)
+      if (userData.status_akun === 'nonaktif') {
+        await signOut(auth); // Logout paksa
+        setErrorMsg("Akses ditolak: Akun Anda telah dinonaktifkan (diblokir). Silakan hubungi Admin.");
+        setLoading(false);
+        return; // Hentikan proses eksekusi kode
+      }
+      
+      // ==========================================
+
       let roleName = 'masyarakat'; // Default role
+      const roleId = userData.role_id;
 
-      if (userDocSnap.exists()) {
-        const userData = userDocSnap.data();
-        const roleId = userData.role_id;
+      // Ambil nama role dari collection 'roles' berdasarkan role_id
+      if (roleId) {
+        const roleDocRef = doc(db, 'roles', roleId);
+        const roleDocSnap = await getDoc(roleDocRef);
 
-        // Ambil nama role dari collection 'roles' berdasarkan role_id
-        if (roleId) {
-          const roleDocRef = doc(db, 'roles', roleId);
-          const roleDocSnap = await getDoc(roleDocRef);
-
-          if (roleDocSnap.exists()) {
-            roleName = roleDocSnap.data().nama_role.toLowerCase();
-          }
+        if (roleDocSnap.exists()) {
+          roleName = roleDocSnap.data().nama_role.toLowerCase();
         }
       }
 
