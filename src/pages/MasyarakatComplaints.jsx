@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { doc, updateDoc, collection, query, where, getDocs, getDoc, orderBy, addDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../firebase';
@@ -35,9 +35,23 @@ export default function MasyarakatComplaints() {
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [isCounselorTyping, setIsCounselorTyping] = useState(false);
 
+  // Auto-scroll referensi untuk Chat
+  const messagesEndRef = useRef(null);
+
   // Counselor Profile States
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [counselorProfile, setCounselorProfile] = useState({ name: '', rating: 0, reviews: 0, loading: false });
+
+  // Fungsi Auto-Scroll ke pesan/animasi mengetik terakhir
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    if (isChatOpen || isDetailOpen) {
+      scrollToBottom();
+    }
+  }, [chatMessages, isCounselorTyping, isChatOpen, isDetailOpen]);
 
   // Fetch Data Firestore
   useEffect(() => {
@@ -263,7 +277,6 @@ export default function MasyarakatComplaints() {
     }
   };
 
-  // Konfigurasi Status Badge
   const getStatusConfig = (status) => {
     switch (status?.toLowerCase()) {
       case 'menunggu': 
@@ -285,7 +298,6 @@ export default function MasyarakatComplaints() {
     }
   };
 
-  // Logika Filtering Laporan
   const filteredComplaints = complaints.filter(c => {
     const matchesSearch = c.judul?.toLowerCase().includes(searchTerm.toLowerCase());
     
@@ -389,14 +401,14 @@ export default function MasyarakatComplaints() {
           </div>
         ) : (
           <div className="flex flex-col h-[400px] border border-gray-100 rounded-2xl bg-gray-50 overflow-hidden">
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0 relative">
               {chatMessages.length === 0 && (
                 <p className="text-center text-xs text-gray-400 mt-10 italic">Sesi chat telah dimulai. Sapa konselor Anda!</p>
               )}
               
               {chatMessages.map(msg => (
                 <div key={msg.id} className={`flex ${msg.sender_id === auth.currentUser.uid ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[85%] p-3 rounded-2xl text-sm ${msg.sender_id === auth.currentUser.uid ? 'bg-[#4B2C82] text-white rounded-tr-none' : 'bg-white text-gray-800 border border-gray-200 rounded-tl-none'}`}>
+                  <div className={`max-w-[85%] p-3 rounded-2xl text-sm ${msg.sender_id === auth.currentUser.uid ? 'bg-[#4B2C82] text-white rounded-tr-none' : 'bg-white text-gray-800 border border-gray-200 rounded-tl-none shadow-sm'}`}>
                     {msg.message}
                     <p className={`text-[8px] mt-1 opacity-50 ${msg.sender_id === auth.currentUser.uid ? 'text-right text-purple-200' : 'text-left text-gray-500'}`}>
                       {msg.createdAt?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -405,19 +417,33 @@ export default function MasyarakatComplaints() {
                 </div>
               ))}
 
-              {/* Animasi Konselor Sedang Mengetik */}
-              {isCounselorTyping && (
-                <div className="flex justify-start">
-                  <div className="px-4 py-3 bg-white text-gray-800 border border-gray-200 rounded-2xl rounded-tl-none flex items-center gap-1.5 h-[42px] shadow-sm">
-                    <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                    <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                    <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                  </div>
-                </div>
-              )}
+              {/* Animasi Pop-up Konselor Sedang Mengetik (Sesuai Referensi Foto) */}
+              <AnimatePresence>
+                {isCounselorTyping && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10, scale: 0.9 }} 
+                    animate={{ opacity: 1, y: 0, scale: 1 }} 
+                    exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
+                    className="flex items-end gap-2 mt-2"
+                  >
+                    <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center shrink-0 border border-purple-200">
+                      <User className="w-4 h-4 text-[#4B2C82]" />
+                    </div>
+                    <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-none px-3.5 py-2.5 shadow-sm flex items-center gap-1 w-fit h-[36px]">
+                      <motion.div animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0 }} className="w-1.5 h-1.5 bg-gray-400 rounded-full" />
+                      <motion.div animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }} className="w-1.5 h-1.5 bg-gray-400 rounded-full" />
+                      <motion.div animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }} className="w-1.5 h-1.5 bg-gray-400 rounded-full" />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              
+              {/* Dummy div untuk auto-scroll point */}
+              <div ref={messagesEndRef} className="h-1" />
             </div>
+
             <form onSubmit={handleSendMessage} className="p-3 bg-white border-t border-gray-100 flex gap-2 shrink-0">
-              <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Tulis pesan..." className="flex-1 bg-gray-50 border-none rounded-xl px-4 text-xs focus:ring-1 focus:ring-[#4B2C82]" />
+              <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Kirim pesan..." className="flex-1 bg-gray-50 border-none rounded-xl px-4 text-xs focus:ring-1 focus:ring-[#4B2C82]" />
               <button type="submit" disabled={!newMessage.trim()} className="w-10 h-10 bg-[#4B2C82] text-white rounded-xl flex items-center justify-center disabled:opacity-50"><Send className="w-4 h-4" /></button>
             </form>
           </div>
