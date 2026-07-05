@@ -301,7 +301,7 @@ export default function MasyarakatDashboard() {
             <div className="space-y-6 flex-1 mt-2">
               {[
                 { title: 'Sampaikan Keluhan', desc: 'Isi formulir pengaduan dengan detail kronologi kejadian.' },
-                { title: 'Lampirkan Bukti', desc: 'Sertakan foto atau dokumen pendukung untuk memperkuat laporan.' },
+                { title: 'Lampirkan Bukti', desc: 'Sertakan kronologi yang lengkap untuk memperkuat laporan.' },
                 { title: 'Konsultasi Privat', desc: 'Dapatkan bantuan psikologis dari konselor profesional kami.' }
               ].map((step, i) => (
                 <div key={i} className={`flex gap-5 group cursor-default transform hover:translate-x-2 transition-transform animate-slide-up delay-${(i + 2) * 100}`} style={{animationDelay: `${(i + 2) * 100}ms`}}>
