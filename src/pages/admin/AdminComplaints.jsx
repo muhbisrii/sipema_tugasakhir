@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, doc, updateDoc, deleteDoc, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, updateDoc, deleteDoc, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
 import { db, auth } from '../../firebase';
 import { Eye, Trash2, Search, Filter, Loader2, X, AlertTriangle, FileDown, Printer, UserCheck, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
@@ -23,7 +23,7 @@ export default function AdminComplaints() {
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [isAssignOpen, setIsAssignOpen] = useState(false); // Modal Assign Konselor
   
-  // State Modal Tolak Laporan
+  // TAMBAHAN: State Modal Tolak Laporan
   const [isRejectOpen, setIsRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [isRejecting, setIsRejecting] = useState(false);
@@ -69,22 +69,13 @@ export default function AdminComplaints() {
     fetchCounselors();
   }, []);
 
-  // 2. Fetch Data Laporan (DIOPTIMASI UNTUK KECEPATAN TINGGI)
+  // 2. Fetch Data Laporan
   useEffect(() => {
     const fetchComplaints = async () => {
       setLoading(true);
       try {
-        // A. Ambil SEMUA data Laporan (1 Request)
         const querySnapshot = await getDocs(collection(db, "laporan"));
         
-        // B. Ambil SEMUA data Users ke dalam memori (1 Request, menghindari N+1 Query)
-        const usersSnap = await getDocs(collection(db, "users"));
-        const usersMap = {};
-        usersSnap.forEach(doc => {
-          usersMap[doc.id] = doc.data();
-        });
-
-        // C. Proses Mapping Data secara Offline (Sangat Cepat)
         const fetchedData = await Promise.all(querySnapshot.docs.map(async (docSnap) => {
           const data = docSnap.data();
           let reporterName = "Pengguna Tidak Diketahui";
@@ -92,43 +83,39 @@ export default function AdminComplaints() {
           let reporterGender = "-";
           let reporterAge = "-";
 
-          // Cek Data Pelapor dari memori (usersMap)
-          if (data.user_id && usersMap[data.user_id]) {
-            const uData = usersMap[data.user_id];
-            reporterName = uData.nama || reporterName;
-            reporterEmail = uData.email || reporterEmail;
-            reporterGender = uData.jenis_kelamin || "-";
-            
-            if (uData.tanggal_lahir) {
-              const birthDate = new Date(uData.tanggal_lahir);
-              const today = new Date();
-              let age = today.getFullYear() - birthDate.getFullYear();
-              const m = today.getMonth() - birthDate.getMonth();
-              if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
-              reporterAge = age;
-            }
+          // Cek Data Pelapor
+          if (data.user_id) {
+            try {
+              const userSnap = await getDoc(doc(db, "users", data.user_id));
+              if (userSnap.exists()) {
+                const uData = userSnap.data();
+                reporterName = uData.nama || reporterName;
+                reporterEmail = uData.email || reporterEmail;
+                reporterGender = uData.jenis_kelamin || "-";
+                
+                if (uData.tanggal_lahir) {
+                  const birthDate = new Date(uData.tanggal_lahir);
+                  const today = new Date();
+                  let age = today.getFullYear() - birthDate.getFullYear();
+                  const m = today.getMonth() - birthDate.getMonth();
+                  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
+                  reporterAge = age;
+                }
+              }
+            } catch (err) { console.error("Gagal fetch user:", err); }
           }
 
           // Cek Data Konselor yang Ditugaskan
           let assignedCounselorName = null;
-          
-          // Optimasi: Jika konselor_id sudah disimpan langsung di tabel laporan
-          if (data.konselor_id && usersMap[data.konselor_id]) {
-            assignedCounselorName = usersMap[data.konselor_id].nama;
-          } 
-          // Kompatibilitas mundur: Cek sub-collection hanya jika konselor_id tidak ada di induk
-          else {
-            try {
-              const kSnap = await getDocs(collection(db, `laporan/${docSnap.id}/konselor`));
-              if (!kSnap.empty) {
-                const kData = kSnap.docs[0].data();
-                if (usersMap[kData.konselor_id]) {
-                  assignedCounselorName = usersMap[kData.konselor_id].nama;
-                }
-              }
-            // eslint-disable-next-line no-unused-vars
-            } catch (e) { /* empty */ }
-          }
+          try {
+            const kSnap = await getDocs(collection(db, `laporan/${docSnap.id}/konselor`));
+            if (!kSnap.empty) {
+              const kData = kSnap.docs[0].data();
+              const cSnap = await getDoc(doc(db, "users", kData.konselor_id));
+              if (cSnap.exists()) assignedCounselorName = cSnap.data().nama;
+            }
+          // eslint-disable-next-line no-unused-vars
+          } catch (e) { /* empty */ }
 
           return { 
             id: docSnap.id, 
@@ -143,9 +130,9 @@ export default function AdminComplaints() {
 
         fetchedData.sort((a, b) => b.created_at?.toMillis() - a.created_at?.toMillis());
         setComplaints(fetchedData);
+      // eslint-disable-next-line no-unused-vars
       } catch (error) {
         toast.error("Terjadi kesalahan saat memuat data laporan.");
-        console.error(error);
       } finally {
         setLoading(false);
       }
@@ -355,13 +342,9 @@ export default function AdminComplaints() {
         assigned_by: auth.currentUser.uid
       });
 
-      // 2. Update status jadi diproses + SIMPAN konselor_id (Optimasi Kecepatan)
+      // 2. Update status jadi diproses
       const laporanRef = doc(db, "laporan", selectedComplaint.id);
-      await updateDoc(laporanRef, { 
-        status_id: 'diproses', 
-        konselor_id: selectedCounselorId, 
-        updated_at: serverTimestamp() 
-      });
+      await updateDoc(laporanRef, { status_id: 'diproses', updated_at: serverTimestamp() });
       
       // 3. Catat riwayat
       await addDoc(collection(laporanRef, "riwayat_status"), {

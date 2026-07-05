@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { collection, getDocs, doc, addDoc, updateDoc, serverTimestamp, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { useState, useEffect } from 'react';
+import { collection, getDocs, doc, getDoc, addDoc, updateDoc, serverTimestamp, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../../firebase';
 import { MessageSquare, Phone, CheckCircle, Loader2, X, AlertTriangle, User, Clock, Eye, Calendar, Send, Info, BookOpen } from 'lucide-react';
 import { toast } from 'sonner';
@@ -34,25 +34,9 @@ export default function KonselorComplaints() {
   const [newMessage, setNewMessage] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
 
-  // State untuk fungsi Typing Indicator
+  // TAMBAHAN: State untuk fungsi Typing Indicator
   const [isTyping, setIsTyping] = useState(false);
   const [typingTimeoutId, setTypingTimeoutId] = useState(null);
-  
-  // State untuk mendeteksi apakah klien sedang mengetik
-  const [isClientTyping, setIsClientTyping] = useState(false);
-
-  // Auto-scroll referensi
-  const messagesEndRef = useRef(null);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  useEffect(() => {
-    if (activeModal === 'chat') {
-      scrollToBottom();
-    }
-  }, [chatMessages, isClientTyping, activeModal]);
 
   // Bersihkan timeout saat komponen unmount
   useEffect(() => {
@@ -89,7 +73,7 @@ export default function KonselorComplaints() {
     }
   };
 
-  // Fetch Data Laporan (DIOPTIMASI UNTUK KECEPATAN TINGGI)
+  // Fetch Data Laporan (HANYA YANG DI-ASSIGN KE KONSELOR INI)
   useEffect(() => {
     const fetchComplaintsData = async () => {
       if (!auth.currentUser) return;
@@ -97,14 +81,6 @@ export default function KonselorComplaints() {
       
       setLoading(true);
       try {
-        // A. Tarik semua pengguna ke dalam memori
-        const usersSnap = await getDocs(collection(db, "users"));
-        const usersMap = {};
-        usersSnap.forEach(doc => {
-          usersMap[doc.id] = doc.data();
-        });
-
-        // B. Tarik laporan
         const laporanSnap = await getDocs(collection(db, "laporan"));
         const fetchedData = [];
 
@@ -115,23 +91,17 @@ export default function KonselorComplaints() {
           let isAssignedToMe = false;
           let assignedCounselorName = null;
           
-          // Mengecek penugasan konselor
-          // Coba cara lama dulu (dari subkoleksi) jika belum ada 'konselor_id' di laporan
-          if (data.konselor_id && data.konselor_id === currentUserId) {
-             isAssignedToMe = true;
-             assignedCounselorName = usersMap[currentUserId]?.nama || 'Anda';
-          } else {
-            try {
-              const konselorSnap = await getDocs(collection(db, `laporan/${reportId}/konselor`));
-              if (!konselorSnap.empty) {
-                const assignmentData = konselorSnap.docs[0].data();
-                if (assignmentData.konselor_id === currentUserId) {
-                  isAssignedToMe = true;
-                  assignedCounselorName = usersMap[currentUserId]?.nama || 'Anda';
-                }
+          try {
+            const konselorSnap = await getDocs(collection(db, `laporan/${reportId}/konselor`));
+            if (!konselorSnap.empty) {
+              const assignmentData = konselorSnap.docs[0].data();
+              if (assignmentData.konselor_id === currentUserId) {
+                isAssignedToMe = true;
+                const cSnap = await getDoc(doc(db, "users", currentUserId));
+                if (cSnap.exists()) assignedCounselorName = cSnap.data().nama;
               }
-            } catch (e) { console.error("Gagal load konselor", e); }
-          }
+            }
+          } catch (e) { console.error("Gagal load konselor", e); }
 
           // HANYA AMBIL JIKA DITUGASKAN KE KONSELOR INI
           if (isAssignedToMe) {
@@ -140,16 +110,19 @@ export default function KonselorComplaints() {
             let reporterEdu = "-";
             let reporterAge = "-";
 
-            // Mencocokkan data pelapor dari memori
-            if (data.user_id && usersMap[data.user_id]) {
-              const uData = usersMap[data.user_id];
-              reporterName = uData.nama || "Pengguna Anonim";
-              reporterPhone = uData.no_hp || uData.phone || "-";
-              reporterEdu = uData.tingkat_pendidikan || uData.pendidikan || "-";
-              reporterAge = calculateAge(uData.tanggal_lahir);
+            if (data.user_id) {
+              try {
+                const userSnap = await getDoc(doc(db, "users", data.user_id));
+                if (userSnap.exists()) {
+                  const uData = userSnap.data();
+                  reporterName = uData.nama || "Pengguna Anonim";
+                  reporterPhone = uData.no_hp || uData.phone || "-";
+                  reporterEdu = uData.tingkat_pendidikan || uData.pendidikan || "-";
+                  reporterAge = calculateAge(uData.tanggal_lahir);
+                }
+              } catch (e) { console.error("Gagal load user", e); }
             }
 
-            // Memuat riwayat tanggapan
             const responses = [];
             try {
               const tanggapanRef = collection(db, `laporan/${reportId}/tanggapan`);
@@ -159,8 +132,9 @@ export default function KonselorComplaints() {
               for (const tDoc of tanggapanSnap.docs) {
                 const tData = tDoc.data();
                 let responderName = "Konselor";
-                if (tData.konselor_id && usersMap[tData.konselor_id]) {
-                  responderName = usersMap[tData.konselor_id].nama;
+                if (tData.konselor_id) {
+                  const rSnap = await getDoc(doc(db, "users", tData.konselor_id));
+                  if (rSnap.exists()) responderName = rSnap.data().nama;
                 }
                 responses.push({
                   id: tDoc.id,
@@ -205,17 +179,14 @@ export default function KonselorComplaints() {
 
   const currentUserId = auth.currentUser?.uid;
 
-  // Real-time Listener untuk Live Chat & Typing Indicator
+  // Real-time Listener untuk Live Chat Konselor
   useEffect(() => {
-    let unsubscribeChat;
-    let unsubscribeTyping;
-    
+    let unsubscribe;
     if ((activeModal === 'detail' || activeModal === 'chat') && selectedComplaint) {
-      // Listener untuk pesan chat
       const chatRef = collection(db, `laporan/${selectedComplaint.id}/chat`);
       const q = query(chatRef, orderBy("created_at", "asc"));
       
-      unsubscribeChat = onSnapshot(q, (snapshot) => {
+      unsubscribe = onSnapshot(q, (snapshot) => {
         const messages = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data(),
@@ -223,20 +194,9 @@ export default function KonselorComplaints() {
         }));
         setChatMessages(messages);
       });
-
-      // Listener untuk mendeteksi apakah klien sedang mengetik
-      const reportRef = doc(db, 'laporan', selectedComplaint.id);
-      unsubscribeTyping = onSnapshot(reportRef, (docSnap) => {
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setIsClientTyping(data.is_masyarakat_typing || false);
-        }
-      });
     }
-
     return () => {
-      if (unsubscribeChat) unsubscribeChat();
-      if (unsubscribeTyping) unsubscribeTyping();
+      if (unsubscribe) unsubscribe();
     };
   }, [activeModal, selectedComplaint]);
 
@@ -428,20 +388,23 @@ export default function KonselorComplaints() {
     }
   };
 
-  // Fungsi deteksi konselor sedang mengetik
+  // TAMBAHAN: Fungsi deteksi mengetik
   const handleTyping = (e) => {
     setNewMessage(e.target.value);
     
     if (!selectedComplaint || selectedComplaint.status_id === 'selesai') return;
 
+    // Jika belum tercatat mengetik, set Firestore jadi true
     if (!isTyping) {
       setIsTyping(true);
       const reportRef = doc(db, 'laporan', selectedComplaint.id);
       updateDoc(reportRef, { is_konselor_typing: true }).catch(console.error);
     }
 
+    // Bersihkan timeout sebelumnya jika pengguna terus mengetik
     if (typingTimeoutId) clearTimeout(typingTimeoutId);
 
+    // Set agar 2 detik setelah berhenti mengetik, status kembali false
     const timeout = setTimeout(() => {
       setIsTyping(false);
       const reportRef = doc(db, 'laporan', selectedComplaint.id);
@@ -1001,11 +964,10 @@ export default function KonselorComplaints() {
                   </div>
                 ) : (
                   <div className="flex flex-col h-[400px] border border-gray-200 rounded-2xl bg-white shadow-sm overflow-hidden">
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0 relative">
+                    <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0 bg-gray-50">
                       {chatMessages.length === 0 && (
                         <p className="text-center text-xs text-gray-400 mt-10 italic">Belum ada percakapan.</p>
                       )}
-                      
                       {chatMessages.map(msg => (
                         <div key={msg.id} className={`flex ${msg.sender_id === auth.currentUser.uid ? 'justify-end' : 'justify-start'}`}>
                           <div className={`max-w-[85%] p-3 rounded-2xl text-sm ${msg.sender_id === auth.currentUser.uid ? 'bg-[#4B2C82] text-white rounded-tr-none shadow-sm' : 'bg-white text-gray-800 border border-gray-200 rounded-tl-none shadow-sm'}`}>
@@ -1016,30 +978,6 @@ export default function KonselorComplaints() {
                           </div>
                         </div>
                       ))}
-
-                      {/* Animasi Pop-up Klien Sedang Mengetik */}
-                      <AnimatePresence>
-                        {isClientTyping && (
-                          <motion.div 
-                            initial={{ opacity: 0, y: 10, scale: 0.9 }} 
-                            animate={{ opacity: 1, y: 0, scale: 1 }} 
-                            exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
-                            className="flex items-end gap-2 mt-2"
-                          >
-                            <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center shrink-0 border border-gray-200">
-                              <User className="w-4 h-4 text-gray-500" />
-                            </div>
-                            <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-none px-3.5 py-2.5 shadow-sm flex items-center gap-1 w-fit h-[36px]">
-                              <motion.div animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0 }} className="w-1.5 h-1.5 bg-gray-400 rounded-full" />
-                              <motion.div animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }} className="w-1.5 h-1.5 bg-gray-400 rounded-full" />
-                              <motion.div animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }} className="w-1.5 h-1.5 bg-gray-400 rounded-full" />
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                      
-                      {/* Dummy div untuk auto-scroll point */}
-                      <div ref={messagesEndRef} className="h-1" />
                     </div>
 
                     {selectedComplaint.status_id === 'selesai' ? (
@@ -1048,6 +986,7 @@ export default function KonselorComplaints() {
                       </div>
                     ) : (
                       <form onSubmit={handleSendMessage} className="p-3 bg-white border-t border-gray-100 flex gap-2 shrink-0">
+                        {/* INPUT CHAT TELAH DIUBAH MENJADI handleTyping */}
                         <input 
                           type="text" 
                           value={newMessage} 
