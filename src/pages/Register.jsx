@@ -1,339 +1,350 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { User, Mail, Lock, Phone, CreditCard, Calendar, GraduationCap, Users, CheckCircle, Loader2, EyeOff, Eye, ShieldCheck } from 'lucide-react';
-import { createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp, collection, query, where, getDocs, addDoc } from 'firebase/firestore'; 
-import { auth, db } from '../firebase'; 
+import { useNavigate } from 'react-router-dom';
+import { doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { updatePassword, deleteUser } from 'firebase/auth';
+import { auth, db } from '../firebase';
+import { AlertCircle, User, Phone, Mail, CreditCard, Lock, ShieldAlert, CheckCircle, Loader2, AlertTriangle, Calendar } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'sonner';
 
-export default function Register() {
+export default function MasyarakatEditProfile() {
   const navigate = useNavigate();
-  const [step, setStep] = useState(1); 
-  const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  
-  const [isAgreed, setIsAgreed] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
 
   const [formData, setFormData] = useState({
-    nama: '', nik: '', email: '', no_hp: '', tanggal_lahir: '', jenis_kelamin: '', tingkat_pendidikan: '', password: '', konfirmasi: ''
+    nama: '',
+    nik: '',
+    no_hp: '',
+    email: '',
+    tanggal_lahir: '', // State baru untuk tanggal lahir
   });
 
-  const handleChange = (e) => {
-    let { name, value } = e.target;
+  const [password, setPassword] = useState('');
 
-    // PERBAIKAN: Jika yang diubah adalah NIK, pastikan hanya angka yang masuk
-    if (name === 'nik') {
-      value = value.replace(/[^0-9]/g, ''); // Hapus semua karakter selain angka
-    }
+  useEffect(() => {
+    const fetchUserData = async () => {
+      if (auth.currentUser) {
+        try {
+          const userRef = doc(db, 'users', auth.currentUser.uid);
+          const docSnap = await getDoc(userRef);
+          
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            setFormData({
+              nama: data.nama || '',
+              nik: data.nik || '',
+              no_hp: data.no_hp || '',
+              email: data.email || auth.currentUser.email || '',
+              tanggal_lahir: data.tanggal_lahir || '', // Ambil dari Firestore
+            });
+          }
+        } catch (error) {
+          console.error("Gagal menarik data profil:", error);
+          toast.error("Gagal memuat profil.");
+        }
+      }
+    };
 
-    setFormData({ ...formData, [name]: value });
+    fetchUserData();
+  }, []);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleRegister = async (e) => {
+  const handleUpdateProfile = async (e) => {
     e.preventDefault();
-    setErrorMsg('');
-    
-    // PERBAIKAN: Validasi NIK harus pas 16 digit
-    if (formData.nik.length !== 16) {
-      return setErrorMsg("Pendaftaran gagal: NIK harus terdiri dari 16 digit angka!");
-    }
+    if (!auth.currentUser) return;
 
-    if (!isAgreed) return setErrorMsg("Anda harus menyetujui kebenaran data sebelum mendaftar.");
-    if (formData.password !== formData.konfirmasi) return setErrorMsg("Password dan Konfirmasi tidak cocok!");
+    setIsLoading(true);
+    setError(null);
+    setSuccess(null);
 
-    setLoading(true);
     try {
-      const usersRef = collection(db, "users");
-      const [nikSnap, emailSnap, hpSnap] = await Promise.all([
-        getDocs(query(usersRef, where("nik", "==", formData.nik))),
-        getDocs(query(usersRef, where("email", "==", formData.email))),
-        getDocs(query(usersRef, where("no_hp", "==", formData.no_hp)))
-      ]);
-
-      if (!nikSnap.empty) { setLoading(false); return setErrorMsg("Pendaftaran gagal: NIK tersebut sudah terdaftar!"); }
-      if (!emailSnap.empty) { setLoading(false); return setErrorMsg("Pendaftaran gagal: Email tersebut sudah terdaftar!"); }
-      if (!hpSnap.empty) { setLoading(false); return setErrorMsg("Pendaftaran gagal: Nomor Handphone tersebut sudah terdaftar!"); }
-
-      const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
-      const user = userCredential.user;
-
-      await setDoc(doc(db, "users", user.uid), {
-        role_id: "ID_ROLE_MASYARAKAT",
-        nama: formData.nama, email: formData.email, nik: formData.nik, no_hp: formData.no_hp,
-        tanggal_lahir: formData.tanggal_lahir, jenis_kelamin: formData.jenis_kelamin, tingkat_pendidikan: formData.tingkat_pendidikan,
-        status_akun: "aktif", created_at: serverTimestamp(), updated_at: serverTimestamp()
+      const userRef = doc(db, 'users', auth.currentUser.uid);
+      await updateDoc(userRef, {
+        nama: formData.nama,
+        nik: formData.nik,
+        no_hp: formData.no_hp,
+        tanggal_lahir: formData.tanggal_lahir, // Update ke Firestore
+        updated_at: new Date()
       });
 
-      // --- BROADCAST NOTIFIKASI KE SEMUA ADMIN ---
-      try {
-        const rolesSnap = await getDocs(collection(db, "roles"));
-        let adminRoleId = null;
-        rolesSnap.forEach(roleDoc => {
-          if (roleDoc.data().nama_role.toLowerCase() === 'admin') {
-            adminRoleId = roleDoc.id;
-          }
-        });
-
-        let qAdmin = adminRoleId 
-          ? query(usersRef, where("role_id", "==", adminRoleId))
-          : query(usersRef, where("role", "==", "admin"));
-        
-        const adminList = await getDocs(qAdmin);
-
-        const notifPromises = [];
-        adminList.forEach(aDoc => {
-          notifPromises.push(addDoc(collection(db, "notifikasi"), {
-            target_user_id: aDoc.id,
-            title: "Pengguna Baru Bergabung!",
-            message: `Masyarakat dengan nama "${formData.nama}" baru saja mendaftarkan akun.`,
-            type: "new_user",
-            link_to: "/admin/users",
-            is_read: false,
-            created_at: serverTimestamp()
-          }));
-        });
-
-        await Promise.all(notifPromises);
-      } catch (notifError) {
-        console.error("Gagal mengirim notif ke admin: ", notifError);
-      }
-
-      await sendEmailVerification(user);
-      setStep(2);
-    } catch (error) {
-      if (error.code === 'auth/email-already-in-use') setErrorMsg('Pendaftaran gagal: Email tersebut sudah terdaftar!');
-      else setErrorMsg(error.message);
+      setSuccess('Profil Anda berhasil diperbarui!');
+      toast.success('Profil berhasil disimpan');
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      setError('Gagal memperbarui profil. Mohon periksa koneksi Anda.');
+      toast.error('Gagal menyimpan profil');
+      console.error(err);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  useEffect(() => {
-    let interval;
-    if (step === 2) {
-      interval = setInterval(async () => {
-        if (auth.currentUser) {
-          await auth.currentUser.reload();
-          if (auth.currentUser.emailVerified) { clearInterval(interval); setStep(3); }
-        }
-      }, 3000);
+  const handleChangePassword = async () => {
+    if (!password || password.length < 6) {
+      toast.error("Password baru minimal 6 karakter!");
+      return;
     }
-    return () => clearInterval(interval);
-  }, [step]);
 
-  useEffect(() => {
-    let timeout;
-    if (step === 3) timeout = setTimeout(() => navigate('/login'), 3000);
-    return () => clearTimeout(timeout);
-  }, [step, navigate]);
+    try {
+      await updatePassword(auth.currentUser, password);
+      toast.success("Password berhasil diubah!");
+      setPassword('');
+    } catch (error) {
+      if (error.code === 'auth/requires-recent-login') {
+        toast.error("Sesi Anda sudah lama. Silakan logout dan login kembali untuk mengubah password.");
+      } else {
+        toast.error("Gagal mengubah password.");
+        console.error(error);
+      }
+    }
+  };
+
+  const confirmDeleteAccount = async () => {
+    if (!auth.currentUser) return;
+    
+    setIsDeleting(true);
+    try {
+      const userRef = doc(db, 'users', auth.currentUser.uid);
+      await deleteDoc(userRef);
+      await deleteUser(auth.currentUser);
+      
+      toast.success("Akun berhasil dihapus permanen.");
+      navigate('/');
+    } catch (err) {
+      if (err.code === 'auth/requires-recent-login') {
+        toast.error("Sesi sudah usang. Silakan logout dan login kembali untuk menghapus akun.");
+      } else {
+        toast.error('Gagal menghapus akun. Silakan hubungi admin.');
+      }
+      console.error(err);
+      setIsDeleting(false);
+      setShowDeleteModal(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-[#F8F9FE] flex flex-col md:flex-row overflow-hidden relative">
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-600/10 rounded-full blur-[100px] animate-float" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[#4B2C82]/10 rounded-full blur-[100px] animate-soft-float" style={{animationDelay: '0.5s'}} />
+    <>
+      <div className="max-w-6xl mx-auto space-y-8 relative">
+        <AnimatePresence>
+          {error && (
+            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-600 font-bold text-sm">
+              <AlertCircle className="w-5 h-5 shrink-0" /> {error}
+            </motion.div>
+          )}
+          {success && (
+            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="p-4 bg-green-50 border border-green-100 rounded-2xl flex items-center gap-3 text-green-600 font-bold text-sm">
+              <CheckCircle className="w-5 h-5 shrink-0" /> {success}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      {/* Panel Kiri (Branding) */}
-      <div className="hidden md:flex flex-col justify-center items-center w-1/2 p-12 relative z-10 bg-[#4B2C82] text-white overflow-hidden shadow-2xl">
-        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=2070')] opacity-10 bg-cover bg-center mix-blend-overlay" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#4B2C82] to-transparent opacity-80" />
-        
-        <div className="relative z-20 flex flex-col items-center text-center max-w-lg animate-fade-in">
-          <div className="w-28 h-28 bg-white/10 backdrop-blur-xl p-4 rounded-3xl mb-8 shadow-2xl border border-white/20 transform hover:-translate-y-2 transition-transform duration-500 animate-float">
-            <img src="/dpppa.png" alt="Logo" className="w-full h-full object-contain filter drop-shadow-lg" />
-          </div>
-          <h1 className="text-5xl font-black mb-6 leading-tight tracking-tight animate-slide-up delay-100">
-            Portal Layanan <br/>
-            <span className="text-purple-300">DP3A Banjarmasin</span>
-          </h1>
-          <p className="text-lg text-purple-100 font-medium leading-relaxed opacity-90 mb-10 animate-slide-up delay-200">
-            Dinas Pemberdayaan Perempuan dan Perlindungan Anak Kota Banjarmasin hadir untuk memberikan perlindungan dan pelayanan terbaik.
-          </p>
-          <div className="flex gap-4 animate-slide-up delay-300">
-            <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-full border border-white/20 backdrop-blur-sm hover:bg-white/20 transition-all hover:scale-105 cursor-pointer">
-              <ShieldCheck className="w-4 h-4 text-green-400 animate-gentle-pulse" />
-              <span className="text-xs font-bold uppercase tracking-wider">Aman</span>
-            </div>
-            <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-full border border-white/20 backdrop-blur-sm hover:bg-white/20 transition-all hover:scale-105 cursor-pointer">
-              <Lock className="w-4 h-4 text-purple-400 animate-gentle-pulse" style={{animationDelay: '0.5s'}} />
-              <span className="text-xs font-bold uppercase tracking-wider">Rahasia</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Panel Kanan (Form) */}
-      <div className="w-full md:w-1/2 flex items-center justify-center p-6 md:p-12 relative z-10 my-auto">
-        <div className="w-full max-w-md bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl p-8 border border-white/50 animate-fade-in">
-          
-          {step === 1 && (
-            <form onSubmit={handleRegister} className="space-y-5 animate-slide-down">
-              <div className="mb-4">
-                <h2 className="text-2xl font-black text-gray-800 mb-1 animate-slide-left delay-100">Buat Akun Baru ✨</h2>
-                <p className="text-gray-500 font-medium text-sm animate-slide-left delay-200">Lengkapi data diri Anda di bawah ini</p>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 bg-white border border-gray-100 shadow-sm rounded-[2rem] overflow-hidden">
+            <div className="bg-[#4B2C82]/5 border-b border-purple-50 p-8">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-[#4B2C82] rounded-2xl flex items-center justify-center text-white shadow-lg">
+                  <User className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-[#4B2C82]">Data Profil</h2>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Identitas Pengguna</p>
+                </div>
               </div>
-
-              {errorMsg && <div className="bg-red-50 text-red-500 border border-red-200 p-3 rounded-xl text-sm mb-4 font-medium animate-bounce-in">{errorMsg}</div>}
-
-              {/* Scrollable Form Area */}
-              <div className="max-h-[50vh] overflow-y-auto pr-2 space-y-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-purple-200 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-purple-400">
-                
-                <div className="space-y-2 animate-slide-up delay-100">
-                  <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Nama Lengkap</label>
-                  <div className="relative group">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-[#4B2C82] transition-colors" />
-                    <input name="nama" value={formData.nama} onChange={handleChange} required placeholder="Sesuai KTP" className="w-full pl-10 h-10 rounded-xl bg-gray-50 border border-gray-200 focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] outline-none text-sm hover:bg-gray-100 transition-colors" />
-                  </div>
-                </div>
-                
-                <div className="space-y-2 animate-slide-up delay-200">
-                  <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Email</label>
-                  <div className="relative group">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-[#4B2C82] transition-colors" />
-                    <input name="email" type="email" value={formData.email} onChange={handleChange} required placeholder="email@contoh.com" className="w-full pl-10 h-10 rounded-xl bg-gray-50 border border-gray-200 focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] outline-none text-sm hover:bg-gray-100 transition-colors" />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2 animate-slide-up delay-300">
-                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">NIK</label>
-                    <div className="relative group">
-                      <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-[#4B2C82] transition-colors" />
-                      {/* PERBAIKAN: Input tipe tel agar muncul numpad di HP, dan batas 16 karakter */}
+            </div>
+            
+            <div className="p-8">
+              <form onSubmit={handleUpdateProfile} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Nama Lengkap</label>
+                    <div className="relative">
+                      <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300" />
                       <input 
-                        name="nik" 
-                        type="tel" 
-                        maxLength="16"
-                        value={formData.nik} 
-                        onChange={handleChange} 
-                        required 
-                        placeholder="16 digit angka NIK" 
-                        className="w-full pl-10 h-10 rounded-xl bg-gray-50 border border-gray-200 focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] outline-none text-sm hover:bg-gray-100 transition-colors" 
+                        type="text"
+                        name="nama" 
+                        value={formData.nama} 
+                        onChange={handleInputChange} 
+                        className="w-full pl-12 pr-4 h-14 rounded-2xl bg-gray-50 border border-gray-200 focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] outline-none transition-all" 
                       />
                     </div>
                   </div>
-                  <div className="space-y-2 animate-slide-up delay-300">
-                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">No. HP</label>
-                    <div className="relative group">
-                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-[#4B2C82] transition-colors" />
-                      <input name="no_hp" type="tel" value={formData.no_hp} onChange={handleChange} required placeholder="08..." className="w-full pl-10 h-10 rounded-xl bg-gray-50 border border-gray-200 focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] outline-none text-sm hover:bg-gray-100 transition-colors" />
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">NIK (Sesuai KTP)</label>
+                    <div className="relative">
+                      <CreditCard className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300" />
+                      <input 
+                        type="text"
+                        name="nik" 
+                        value={formData.nik} 
+                        onChange={handleInputChange} 
+                        className="w-full pl-12 pr-4 h-14 rounded-2xl bg-gray-50 border border-gray-200 focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] outline-none transition-all" 
+                      />
                     </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2 animate-slide-up delay-400">
-                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Tanggal Lahir</label>
-                    <div className="relative group">
-                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-[#4B2C82] transition-colors" />
-                      <input name="tanggal_lahir" type="date" value={formData.tanggal_lahir} onChange={handleChange} required className="w-full pl-10 pr-2 h-10 rounded-xl bg-gray-50 border border-gray-200 focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] outline-none text-sm text-gray-600 hover:bg-gray-100 transition-colors" />
-                    </div>
-                  </div>
-                  <div className="space-y-2 animate-slide-up delay-400">
-                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Jenis Kelamin</label>
-                    <div className="relative group">
-                      <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-[#4B2C82] transition-colors" />
-                      <select name="jenis_kelamin" value={formData.jenis_kelamin} onChange={handleChange} required className="w-full pl-10 pr-2 h-10 rounded-xl bg-gray-50 border border-gray-200 focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] outline-none text-sm text-gray-600 appearance-none hover:bg-gray-100 transition-colors">
-                        <option value="" disabled>Pilih</option>
-                        <option value="Laki-laki">Laki-laki</option>
-                        <option value="Perempuan">Perempuan</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2 animate-slide-up delay-500">
-                  <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Tingkat Pendidikan</label>
-                  <div className="relative group">
-                    <GraduationCap className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-[#4B2C82] transition-colors" />
-                    <select name="tingkat_pendidikan" value={formData.tingkat_pendidikan} onChange={handleChange} required className="w-full pl-10 pr-2 h-10 rounded-xl bg-gray-50 border border-gray-200 focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] outline-none text-sm text-gray-600 appearance-none hover:bg-gray-100 transition-colors">
-                      <option value="" disabled>Pilih</option>
-                      <option value="SD">SD Sederajat</option>
-                      <option value="SMP">SMP Sederajat</option>
-                      <option value="SMA">SMA Sederajat</option>
-                      <option value="D3">Diploma (D3)</option>
-                      <option value="S1">Sarjana (S1)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2 animate-slide-up delay-600">
-                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Password</label>
-                    <div className="relative group">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input name="password" type={showPassword ? "text" : "password"} value={formData.password} onChange={handleChange} required minLength={6} placeholder="Min. 6 Kar" className="w-full pl-10 pr-8 h-10 rounded-xl bg-gray-50 border border-gray-200 focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] outline-none text-sm" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">No. Handphone</label>
+                    <div className="relative">
+                      <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300" />
+                      <input 
+                        type="tel"
+                        name="no_hp" 
+                        value={formData.no_hp} 
+                        onChange={handleInputChange} 
+                        className="w-full pl-12 pr-4 h-14 rounded-2xl bg-gray-50 border border-gray-200 focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] outline-none transition-all" 
+                      />
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Konfirmasi</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Email</label>
                     <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input name="konfirmasi" type={showPassword ? "text" : "password"} value={formData.konfirmasi} onChange={handleChange} required placeholder="Ulangi Pass" className="w-full pl-10 pr-8 h-10 rounded-xl bg-gray-50 border border-gray-200 focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] outline-none text-sm" />
-                      <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
+                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300" />
+                      <input 
+                        type="email"
+                        value={formData.email} 
+                        disabled 
+                        className="w-full pl-12 pr-4 h-14 rounded-2xl border-gray-100 bg-gray-100 text-gray-500 opacity-60 cursor-not-allowed" 
+                      />
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Checkbox Persetujuan */}
-              <div className="flex items-start gap-3 mt-4 pt-2 border-t border-gray-100 animate-slide-up delay-600">
-                <div className="pt-0.5">
-                  <input 
-                    type="checkbox" 
-                    id="agreement" 
-                    checked={isAgreed}
-                    onChange={(e) => setIsAgreed(e.target.checked)}
-                    className="w-4 h-4 text-[#4B2C82] bg-gray-50 border-gray-300 rounded focus:ring-[#4B2C82] focus:ring-2 cursor-pointer"
-                  />
+                {/* TAMBAHAN: Input Tanggal Lahir (Kiri) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Tanggal Lahir</label>
+                    <div className="relative">
+                      <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300" />
+                      <input 
+                        type="date"
+                        name="tanggal_lahir" 
+                        value={formData.tanggal_lahir} 
+                        onChange={handleInputChange} 
+                        className="w-full pl-12 pr-4 h-14 rounded-2xl bg-gray-50 border border-gray-200 focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] outline-none transition-all text-gray-700" 
+                      />
+                    </div>
+                  </div>
                 </div>
-                <label htmlFor="agreement" className="text-xs text-gray-500 leading-relaxed cursor-pointer select-none">
-                  Saya menyatakan dengan sesungguhnya bahwa seluruh data yang saya isikan di atas adalah <strong className="text-gray-700">benar dan sesuai dengan identitas asli saya</strong>.
-                </label>
-              </div>
 
-              {/* Tombol dimatikan (disabled) jika isAgreed false */}
-              <button disabled={loading || !isAgreed} type="submit" className={`btn-modern w-full h-14 bg-[#4B2C82] hover:bg-purple-900 text-white rounded-2xl text-base font-bold shadow-lg shadow-purple-900/20 mt-6 disabled:opacity-50 disabled:bg-gray-400 disabled:shadow-none disabled:cursor-not-allowed animate-slide-up delay-700 ${loading ? 'cursor-wait' : ''} transition-all`}>
-                {loading ? <Loader2 className="animate-spin h-5 w-5" /> : "Daftar Akun"}
-              </button>
+                <div className="pt-6">
+                  <button 
+                    type="submit" 
+                    disabled={isLoading} 
+                    className="w-full flex justify-center items-center bg-[#4B2C82] hover:bg-purple-900 text-white h-14 rounded-2xl font-bold shadow-xl transition-all disabled:opacity-70"
+                  >
+                    {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Perbarui Profil'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <div className="space-y-8">
+            <div className="bg-white border border-gray-100 shadow-sm rounded-[2rem] overflow-hidden">
+              <div className="bg-gray-50 border-b border-gray-100 p-8">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-white border border-gray-100 rounded-xl flex items-center justify-center text-gray-400 shadow-sm">
+                    <Lock className="w-5 h-5" />
+                  </div>
+                  <h2 className="text-lg font-black text-gray-800">Keamanan</h2>
+                </div>
+              </div>
               
-              <div className="text-center mt-4 animate-slide-up delay-300">
-                <span className="text-sm text-gray-500 font-medium">Sudah punya akun? </span>
-                <Link to="/login" className="btn-modern text-sm text-[#4B2C82] font-black hover:underline hover:text-purple-900 transition-colors transform inline-block">Masuk di sini</Link>
-              </div>
-            </form>
-          )}
-
-          {step === 2 && (
-            <div className="flex flex-col items-center justify-center text-center py-8 animate-fade-in">
-              <div className="bg-yellow-50 p-5 rounded-full relative mb-6 animate-scale-bounce">
-                <Mail className="text-yellow-500 h-10 w-10 animate-gentle-pulse" />
-                <span className="absolute top-3 right-3 h-3.5 w-3.5 bg-red-500 rounded-full border-2 border-white animate-glow-pulse"></span>
-              </div>
-              <h2 className="text-2xl font-black text-gray-800 mb-2 animate-slide-down">Cek Email Anda!</h2>
-              <p className="text-gray-500 text-sm mb-6 animate-slide-up delay-100">Kami telah mengirim verifikasi ke <strong>{formData.email}</strong>.</p>
-              <div className="bg-purple-50 text-[#4B2C82] px-6 py-3 rounded-xl text-sm mb-6 inline-block font-bold animate-float delay-200">Jangan tutup halaman ini.</div>
-              <p className="text-gray-500 text-sm mb-12 animate-slide-up delay-300">Buka Tab Baru/HP, cek Inbox/Spam, lalu klik linknya.</p>
-              <div className="flex items-center gap-2 text-gray-400 text-sm font-medium animate-slide-up delay-400"><Loader2 className="h-4 w-4 animate-spin" /> Mendeteksi verifikasi...</div>
-            </div>
-          )}
-
-          {step === 3 && (
-            <div className="flex flex-col items-center justify-center text-center py-8 animate-fade-in">
-              <div className="bg-green-100 p-5 rounded-full mb-6 animate-bounce-in">
-                <CheckCircle className="text-green-500 h-12 w-12 animate-scale-bounce" />
-              </div>
-              <h2 className="text-2xl font-black text-gray-800 mb-2 animate-slide-down">Berhasil!</h2>
-              <p className="text-gray-500 text-sm mb-8 font-medium animate-slide-up delay-100">Email Anda terverifikasi.<br/>Mengarahkan ke Login...</p>
-              <div className="w-48 h-1.5 bg-gray-100 rounded-full overflow-hidden animate-slide-up delay-200">
-                <div className="h-full bg-green-500 animate-gradient-shift w-full"></div>
+              <div className="p-8 space-y-6">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Password Baru</label>
+                    <input 
+                      type="password" 
+                      placeholder="Minimal 6 karakter"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full px-4 h-14 rounded-2xl bg-gray-50 border border-gray-200 focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] outline-none transition-all" 
+                    />
+                  </div>
+                  <button 
+                    onClick={handleChangePassword}
+                    className="w-full flex justify-center items-center h-14 rounded-2xl border border-gray-200 font-bold text-gray-600 hover:bg-gray-50 transition-all"
+                  >
+                    Ubah Password
+                  </button>
+                </div>
               </div>
             </div>
-          )}
 
+            <div className="bg-red-50 border border-red-100 rounded-[2rem] overflow-hidden">
+              <div className="p-8 space-y-4 text-center">
+                <div className="w-16 h-16 bg-white rounded-3xl flex items-center justify-center mx-auto shadow-sm border border-red-100">
+                  <ShieldAlert className="w-8 h-8 text-red-500" />
+                </div>
+                <h3 className="text-red-900 font-black">Zona Bahaya</h3>
+                <p className="text-xs text-red-700 font-medium leading-relaxed">Hapus akun secara permanen akan menghapus seluruh data dan riwayat laporan Anda.</p>
+                <button 
+                  onClick={() => setShowDeleteModal(true)}
+                  className="w-full flex justify-center items-center bg-red-600 hover:bg-red-700 text-white h-14 rounded-2xl font-bold shadow-lg shadow-red-200 transition-all"
+                >
+                  Hapus Akun Permanen
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* POP-UP MODERN HAPUS AKUN (Menutupi Layar) */}
+      <AnimatePresence>
+        {showDeleteModal && (
+          <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              /* Hapus overflow-hidden di sini agar ikon bisa keluar dari kotak */
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-md relative mt-8"
+            >
+              <div className="p-8 text-center space-y-6">
+                <div className="w-24 h-24 bg-red-50 rounded-[2rem] flex items-center justify-center mx-auto border-4 border-white shadow-sm -mt-16 absolute top-0 left-1/2 transform -translate-x-1/2">
+                  <AlertTriangle className="w-10 h-10 text-red-500" />
+                </div>
+                
+                <div className="pt-10">
+                  <h3 className="text-2xl font-black text-gray-800 mb-3">Hapus Akun Permanen?</h3>
+                  <p className="text-gray-500 font-medium text-sm leading-relaxed mb-8">
+                    Tindakan ini <strong className="text-red-500">tidak dapat dibatalkan</strong>. Seluruh data profil dan riwayat pengaduan Anda akan dihapus secara permanen dari sistem DP3A Banjarmasin.
+                  </p>
+                </div>
+
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => setShowDeleteModal(false)}
+                    disabled={isDeleting}
+                    className="flex-1 py-4 rounded-2xl font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors disabled:opacity-50"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={confirmDeleteAccount}
+                    disabled={isDeleting}
+                    className="flex-1 flex justify-center items-center py-4 rounded-2xl font-bold text-white bg-red-600 hover:bg-red-700 shadow-lg shadow-red-200 transition-all disabled:opacity-70"
+                  >
+                    {isDeleting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Ya, Hapus!'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
