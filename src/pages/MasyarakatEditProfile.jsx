@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { updatePassword, deleteUser } from 'firebase/auth';
+import { updatePassword, deleteUser, onAuthStateChanged } from 'firebase/auth'; // <-- Tambahan onAuthStateChanged
 import { auth, db } from '../firebase';
 import { AlertCircle, User, Phone, Mail, CreditCard, Lock, ShieldAlert, CheckCircle, Loader2, AlertTriangle, Calendar, Users, GraduationCap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -21,17 +21,18 @@ export default function MasyarakatEditProfile() {
     no_hp: '',
     email: '',
     tanggal_lahir: '',
-    jenis_kelamin: '', // State baru untuk jenis kelamin
-    tingkat_pendidikan: '', // State baru untuk tingkat pendidikan
+    jenis_kelamin: '', 
+    tingkat_pendidikan: '', 
   });
 
   const [password, setPassword] = useState('');
 
+  // PERBAIKAN: Menggunakan onAuthStateChanged agar data tidak hilang saat di-refresh
   useEffect(() => {
-    const fetchUserData = async () => {
-      if (auth.currentUser) {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
         try {
-          const userRef = doc(db, 'users', auth.currentUser.uid);
+          const userRef = doc(db, 'users', user.uid);
           const docSnap = await getDoc(userRef);
           
           if (docSnap.exists()) {
@@ -40,10 +41,10 @@ export default function MasyarakatEditProfile() {
               nama: data.nama || '',
               nik: data.nik || '',
               no_hp: data.no_hp || '',
-              email: data.email || auth.currentUser.email || '',
+              email: data.email || user.email || '',
               tanggal_lahir: data.tanggal_lahir || '',
-              jenis_kelamin: data.jenis_kelamin || '', // Ambil dari Firestore
-              tingkat_pendidikan: data.tingkat_pendidikan || '', // Ambil dari Firestore
+              jenis_kelamin: data.jenis_kelamin || '',
+              tingkat_pendidikan: data.tingkat_pendidikan || '',
             });
           }
         } catch (error) {
@@ -51,9 +52,10 @@ export default function MasyarakatEditProfile() {
           toast.error("Gagal memuat profil.");
         }
       }
-    };
+    });
 
-    fetchUserData();
+    // Cleanup listener ketika komponen dilepas (unmount)
+    return () => unsubscribe();
   }, []);
 
   const handleInputChange = (e) => {
@@ -76,8 +78,8 @@ export default function MasyarakatEditProfile() {
         nik: formData.nik,
         no_hp: formData.no_hp,
         tanggal_lahir: formData.tanggal_lahir,
-        jenis_kelamin: formData.jenis_kelamin, // Update ke Firestore
-        tingkat_pendidikan: formData.tingkat_pendidikan, // Update ke Firestore
+        jenis_kelamin: formData.jenis_kelamin, 
+        tingkat_pendidikan: formData.tingkat_pendidikan, 
         updated_at: new Date()
       });
 
