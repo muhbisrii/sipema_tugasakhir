@@ -16,18 +16,18 @@ export default function AdminUsers() {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   
-  // States Modal Tambah
+  // States Modal Tambah (DIPERBARUI: Role paten jadi konselor)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newUser, setNewUser] = useState({
-    name: '', email: '', role: 'masyarakat', phone: '', address: '', spesialisasi: [],
+    name: '', email: '', role: 'konselor', phone: '', spesialisasi: [],
   });
 
   // States Modal Edit
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
 
-  // States Modal Hapus (BARU)
+  // States Modal Hapus
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -150,31 +150,28 @@ export default function AdminUsers() {
       : <span className="px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase bg-red-100 text-red-800 border border-red-200">NONAKTIF</span>;
   };
 
-  // --- HANDLER TAMBAH USER ---
+  // --- HANDLER TAMBAH USER (KONSELOR ONLY) ---
   const handleAddUser = async () => {
     if (!newUser.name || !newUser.email || !newUser.phone) {
       toast.error("Mohon lengkapi semua data yang wajib!");
       return;
     }
 
-    if (newUser.role === 'konselor') {
-      if (!newUser.email.endsWith('@konselor.com')) {
-        toast.error("Email Konselor WAJIB menggunakan akhiran @konselor.com!");
-        return;
-      }
-      if (!newUser.spesialisasi || newUser.spesialisasi.length === 0) {
-        toast.error("Mohon pilih Bidang Keahlian / Spesialisasi untuk Konselor ini!");
-        return;
-      }
+    if (!newUser.email.endsWith('@konselor.com')) {
+      toast.error("Email Konselor WAJIB menggunakan akhiran @konselor.com!");
+      return;
+    }
+
+    if (!newUser.spesialisasi || newUser.spesialisasi.length === 0) {
+      toast.error("Mohon pilih Bidang Keahlian / Spesialisasi untuk Konselor ini!");
+      return;
     }
 
     setIsSubmitting(true);
     try {
-      let targetRoleId = rolesIdMap[newUser.role];
-      if (newUser.role === 'masyarakat' && !targetRoleId) {
-        targetRoleId = 'ID_ROLE_MASYARAKAT'; 
-      } else if (!targetRoleId) {
-        throw new Error(`Role '${newUser.role}' belum dibuat di tabel 'roles' Firebase.`);
+      let targetRoleId = rolesIdMap['konselor'];
+      if (!targetRoleId) {
+        throw new Error(`Role 'konselor' belum dibuat di tabel 'roles' Firebase.`);
       }
 
       const apps = getApps();
@@ -196,19 +193,18 @@ export default function AdminUsers() {
         email: newUser.email,
         password: defaultPassword, 
         no_hp: newUser.phone,
-        alamat: newUser.address || "",
-        spesialisasi: newUser.role === 'konselor' ? newUser.spesialisasi : null,
+        spesialisasi: newUser.spesialisasi,
         status_akun: "aktif",
         created_at: serverTimestamp(),
         updated_at: serverTimestamp(),
       });
 
-      toast.success(`Akun ${newUser.role} berhasil dibuat dengan password: ${defaultPassword}`);
+      toast.success(`Akun Konselor berhasil dibuat dengan password: ${defaultPassword}`);
       setIsAddDialogOpen(false);
-      setNewUser({ name: '', email: '', role: 'masyarakat', phone: '', address: '', spesialisasi: [] });
+      setNewUser({ name: '', email: '', role: 'konselor', phone: '', spesialisasi: [] });
       setRefreshTrigger(prev => prev + 1); 
     } catch (error) {
-      console.error("Gagal tambah user:", error);
+      console.error("Gagal tambah konselor:", error);
       if (error.code === 'auth/email-already-in-use') {
         toast.error("Email tersebut sudah terdaftar di sistem!");
       } else {
@@ -272,7 +268,7 @@ export default function AdminUsers() {
     }
   };
 
-  // --- HANDLER HAPUS USER (DIPERBARUI) ---
+  // --- HANDLER HAPUS USER ---
   const confirmDeleteUser = (user) => {
     setUserToDelete(user);
     setIsDeleteDialogOpen(true);
@@ -324,7 +320,7 @@ export default function AdminUsers() {
             className="btn-modern bg-[#4B2C82] hover:bg-purple-900 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-colors shadow-lg shadow-purple-900/20 text-sm"
           >
             <UserPlus className="w-4 h-4" />
-            Tambah Pengguna
+            Tambah Konselor
           </button>
         </div>
 
@@ -391,7 +387,7 @@ export default function AdminUsers() {
         {/* Users Table */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left">
+            <table className="w-full text-left min-w-[800px]">
               <thead className="bg-[#4B2C82]/5 border-b border-purple-100">
                 <tr>
                   <th className="py-4 px-6 text-xs font-black text-[#4B2C82] uppercase tracking-widest whitespace-nowrap">Nama & Alamat</th>
@@ -399,7 +395,7 @@ export default function AdminUsers() {
                   <th className="py-4 px-6 text-xs font-black text-[#4B2C82] uppercase tracking-widest">Role & Keahlian</th>
                   <th className="py-4 px-6 text-xs font-black text-[#4B2C82] uppercase tracking-widest whitespace-nowrap">Telepon</th>
                   <th className="py-4 px-6 text-xs font-black text-[#4B2C82] uppercase tracking-widest whitespace-nowrap">Status</th>
-                  <th className="py-4 px-6 text-xs font-black text-[#4B2C82] uppercase tracking-widest text-right whitespace-nowrap">Aksi</th>
+                  <th className="py-4 px-6 text-xs font-black text-[#4B2C82] uppercase tracking-widest text-right whitespace-nowrap sticky right-0 bg-[#f4f2f9] shadow-[-5px_0_10px_rgba(0,0,0,0.02)] border-l border-purple-100/50 z-10">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -416,7 +412,7 @@ export default function AdminUsers() {
                   </tr>
                 ) : (
                   filteredUsers.map((user) => (
-                    <tr key={user.id} className="hover:bg-purple-50/30 transition-colors">
+                    <tr key={user.id} className="hover:bg-purple-50/30 transition-colors group">
                       <td className="py-4 px-6">
                         <p className="text-sm font-bold text-gray-800">{user.nama}</p>
                         {user.alamat && (
@@ -435,7 +431,7 @@ export default function AdminUsers() {
                       <td className="py-4 px-6 whitespace-nowrap">
                         {getStatusBadge(user.status_akun || 'aktif')}
                       </td>
-                      <td className="py-4 px-6">
+                      <td className="py-4 px-6 sticky right-0 bg-white group-hover:bg-[#fcfcff] shadow-[-5px_0_10px_rgba(0,0,0,0.02)] transition-colors z-10">
                         <div className="flex items-center justify-end gap-2">
                           <button 
                             onClick={() => handleEditClick(user)}
@@ -464,7 +460,7 @@ export default function AdminUsers() {
 
       {/* --- MODALS --- */}
       
-      {/* Modal Tambah Pengguna */}
+      {/* Modal Tambah Pengguna (HANYA KONSELOR) */}
       <AnimatePresence>
         {isAddDialogOpen && (
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
@@ -476,8 +472,8 @@ export default function AdminUsers() {
             >
               <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-gray-50 shrink-0">
                 <div>
-                  <h3 className="text-lg font-black text-[#4B2C82]">Tambah Pengguna</h3>
-                  <p className="text-xs text-gray-500 font-medium mt-1">Daftarkan akun masyarakat atau konselor baru.</p>
+                  <h3 className="text-lg font-black text-[#4B2C82]">Tambah Konselor Baru</h3>
+                  <p className="text-xs text-gray-500 font-medium mt-1">Daftarkan akun untuk staf/konselor pendamping.</p>
                 </div>
                 <button onClick={() => setIsAddDialogOpen(false)} className="text-gray-400 hover:text-red-500 transition-colors">
                   <X className="w-6 h-6" />
@@ -491,61 +487,44 @@ export default function AdminUsers() {
                     type="text"
                     value={newUser.name}
                     onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
-                    placeholder="Masukkan nama lengkap"
+                    placeholder="Masukkan nama lengkap konselor"
                     className="w-full px-4 h-11 rounded-xl bg-gray-50 border border-gray-200 focus:outline-none focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] text-sm"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Email</label>
+                  <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Email Resmi</label>
                   <input
                     type="email"
                     value={newUser.email}
                     onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                    placeholder={newUser.role === 'konselor' ? "nama@konselor.com" : "email@contoh.com"}
+                    placeholder="nama@konselor.com"
                     className="w-full px-4 h-11 rounded-xl bg-gray-50 border border-gray-200 focus:outline-none focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] text-sm"
                   />
-                  {newUser.role === 'konselor' && (
-                    <p className="text-[10px] text-orange-500 font-bold">* Email konselor harus diakhiri dengan @konselor.com</p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Role (Hak Akses)</label>
-                  <select 
-                    value={newUser.role} 
-                    onChange={(e) => {
-                      setNewUser({ ...newUser, role: e.target.value, spesialisasi: [] }) 
-                    }}
-                    className="w-full px-4 h-11 rounded-xl bg-gray-50 border border-gray-200 focus:outline-none focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] text-sm font-bold text-[#4B2C82]"
-                  >
-                    <option value="masyarakat">Masyarakat</option>
-                    <option value="konselor">Konselor</option>
-                  </select>
+                  <p className="text-[10px] text-orange-500 font-bold">* Email harus diakhiri dengan @konselor.com</p>
                 </div>
 
-                {newUser.role === 'konselor' && (
-                  <div className="space-y-2 p-4 bg-purple-50 rounded-xl border border-purple-100">
-                    <label className="text-xs font-bold text-purple-900 uppercase tracking-widest block mb-2">Pilih Keahlian (Bisa Lebih Dari Satu)</label>
-                    <div className="grid grid-cols-1 gap-2">
-                      {['Hukum / Paralegal', 'Psikologi / Klinis', 'Agama / Rohani', 'Pekerja Sosial'].map(skill => (
-                        <label key={skill} className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
-                          <input 
-                            type="checkbox" 
-                            checked={newUser.spesialisasi?.includes(skill)}
-                            onChange={(e) => {
-                              const current = newUser.spesialisasi || [];
-                              const updated = e.target.checked 
-                                ? [...current, skill] 
-                                : current.filter(s => s !== skill);
-                              setNewUser({ ...newUser, spesialisasi: updated });
-                            }}
-                            className="w-4 h-4 text-[#4B2C82] rounded focus:ring-[#4B2C82]"
-                          />
-                          {skill}
-                        </label>
-                      ))}
-                    </div>
+                <div className="space-y-2 p-4 bg-purple-50 rounded-xl border border-purple-100">
+                  <label className="text-xs font-bold text-purple-900 uppercase tracking-widest block mb-2">Pilih Keahlian (Bisa Lebih Dari Satu)</label>
+                  <div className="grid grid-cols-1 gap-2">
+                    {['Hukum / Paralegal', 'Psikologi / Klinis', 'Agama / Rohani', 'Pekerja Sosial'].map(skill => (
+                      <label key={skill} className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={newUser.spesialisasi?.includes(skill)}
+                          onChange={(e) => {
+                            const current = newUser.spesialisasi || [];
+                            const updated = e.target.checked 
+                              ? [...current, skill] 
+                              : current.filter(s => s !== skill);
+                            setNewUser({ ...newUser, spesialisasi: updated });
+                          }}
+                          className="w-4 h-4 text-[#4B2C82] rounded focus:ring-[#4B2C82]"
+                        />
+                        {skill}
+                      </label>
+                    ))}
                   </div>
-                )}
+                </div>
 
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">No. Telepon / WhatsApp</label>
@@ -557,18 +536,6 @@ export default function AdminUsers() {
                     className="w-full px-4 h-11 rounded-xl bg-gray-50 border border-gray-200 focus:outline-none focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] text-sm"
                   />
                 </div>
-                
-                {newUser.role === 'masyarakat' && (
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Alamat (Khusus Masyarakat)</label>
-                    <textarea
-                      value={newUser.address}
-                      onChange={(e) => setNewUser({ ...newUser, address: e.target.value })}
-                      placeholder="Alamat lengkap tempat tinggal"
-                      className="w-full p-3 h-20 resize-none rounded-xl bg-gray-50 border border-gray-200 focus:outline-none focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] text-sm"
-                    />
-                  </div>
-                )}
               </div>
 
               <div className="p-5 border-t border-gray-100 bg-white shrink-0">
@@ -577,7 +544,7 @@ export default function AdminUsers() {
                   disabled={isSubmitting}
                   className="w-full h-12 bg-[#4B2C82] hover:bg-purple-900 text-white rounded-xl font-bold shadow-lg transition-all disabled:opacity-70 flex items-center justify-center"
                 >
-                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Simpan Pengguna & Buat Akun"}
+                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Buat Akun Konselor"}
                 </button>
               </div>
             </motion.div>
