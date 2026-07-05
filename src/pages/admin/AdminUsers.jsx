@@ -27,6 +27,11 @@ export default function AdminUsers() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
 
+  // States Modal Hapus (BARU)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   useEffect(() => {
     const fetchUsersData = async () => {
       try {
@@ -267,28 +272,46 @@ export default function AdminUsers() {
     }
   };
 
-  // --- HANDLER HAPUS USER ---
-  const handleDeleteUser = async (userId, userName) => {
-    if (!window.confirm(`Hapus pengguna "${userName}" dari database sistem secara permanen?\n\nPerhatian: Data ini tidak dapat dikembalikan!`)) {
-      return;
-    }
+  // --- HANDLER HAPUS USER (DIPERBARUI) ---
+  const confirmDeleteUser = (user) => {
+    setUserToDelete(user);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const executeDeleteUser = async () => {
+    if (!userToDelete) return;
+    setIsDeleting(true);
 
     try {
-      await deleteDoc(doc(db, "users", userId));
-      toast.success("Pengguna berhasil dihapus!");
+      // 1. Hapus data pengguna dari Firestore
+      await deleteDoc(doc(db, "users", userToDelete.id));
+
+      // 2. LOGIKA MENGHAPUS DARI FIREBASE AUTHENTICATION (BACKEND)
+      // Karena React (Client SDK) tidak bisa menghapus Auth pengguna lain, 
+      // Anda HARUS memanggil endpoint API/Cloud Function Anda di sini. 
+      // Contoh jika Anda sudah membuat API Cloud Function:
+      /*
+        await fetch(`https://REGION-PROJECT_ID.cloudfunctions.net/deleteUserAuth`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uid: userToDelete.id })
+        });
+      */
+
+      toast.success(`Pengguna "${userToDelete.nama}" berhasil dihapus dari database!`);
+      setIsDeleteDialogOpen(false);
+      setUserToDelete(null);
       setRefreshTrigger(prev => prev + 1);
     } catch (error) {
       console.error("Gagal hapus user:", error);
       toast.error("Terjadi kesalahan saat menghapus pengguna.");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
   return (
     <>
-      {/* 
-        PERBAIKAN: Konten utama dibungkus terpisah dari modal 
-        agar modal bisa menggunakan fixed position yang benar (relatif ke viewport)
-      */}
       <div className="space-y-6 animate-fade-in">
         {/* Header */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -422,7 +445,7 @@ export default function AdminUsers() {
                             <Edit className="w-4 h-4" />
                           </button>
                           <button 
-                            onClick={() => handleDeleteUser(user.id, user.nama)}
+                            onClick={() => confirmDeleteUser(user)}
                             className="w-8 h-8 rounded-lg flex items-center justify-center text-red-600 hover:bg-red-50 transition-colors"
                             title="Hapus Pengguna"
                           >
@@ -439,9 +462,8 @@ export default function AdminUsers() {
         </div>
       </div>
 
-      {/* =======================================
-          PERBAIKAN: MODAL DI LUAR ANIMATE DIV 
-          ======================================= */}
+      {/* --- MODALS --- */}
+      
       {/* Modal Tambah Pengguna */}
       <AnimatePresence>
         {isAddDialogOpen && (
@@ -660,6 +682,45 @@ export default function AdminUsers() {
                   className="flex-[2] h-12 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg transition-all disabled:opacity-70 flex items-center justify-center"
                 >
                   {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Simpan Perubahan"}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL HAPUS PENGGUNA (BARU) */}
+      <AnimatePresence>
+        {isDeleteDialogOpen && userToDelete && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-white w-full max-w-sm rounded-3xl p-6 text-center shadow-2xl relative"
+            >
+              <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-red-100">
+                <Trash2 className="w-10 h-10 text-red-500" />
+              </div>
+              <h3 className="text-xl font-black text-gray-800 mb-1">Hapus Pengguna?</h3>
+              <p className="text-sm text-gray-500 mb-8 leading-relaxed px-2">
+                Apakah Anda yakin ingin menghapus akun <span className="font-bold text-red-600">"{userToDelete.nama}"</span> secara permanen? Data yang telah dihapus tidak dapat dikembalikan.
+              </p>
+              
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setIsDeleteDialogOpen(false)}
+                  disabled={isDeleting}
+                  className="flex-1 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold transition-colors disabled:opacity-50"
+                >
+                  Batal
+                </button>
+                <button 
+                  onClick={executeDeleteUser}
+                  disabled={isDeleting}
+                  className="flex-1 py-3.5 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold shadow-lg transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
+                >
+                  {isDeleting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Ya, Hapus"}
                 </button>
               </div>
             </motion.div>
