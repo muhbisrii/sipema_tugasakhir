@@ -76,7 +76,7 @@ export default function TentangAplikasi({ onBack }) {
             </div>
             
             <a 
-              href="https://drive.google.com/drive/folders/10xcD8OwIkdVkZ6eYSHgp4M_I4As4qQpX?usp=drive_link" 
+              href="https://drive.google.com/file/d/1Zqz12l2XN3p8VTap7luDaK6KQxx5HQ7C/view?usp=sharing" 
               target="_blank" 
               rel="noopener noreferrer"
               className="shrink-0 w-full sm:w-auto bg-[#4B2C82] hover:bg-purple-900 text-white px-6 py-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-lg shadow-purple-900/20 relative z-10"
