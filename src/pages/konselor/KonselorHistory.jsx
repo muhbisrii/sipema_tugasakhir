@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, getDocs, doc, getDoc, query, orderBy } from 'firebase/firestore';
 import { db, auth } from '../../firebase';
-import { FileText, CheckCircle, Loader2, Star, User, BookOpen, Printer, X, Eye, FileDown } from 'lucide-react';
+import { FileText, CheckCircle, Loader2, Star, User, BookOpen, Printer, X, Eye, FileDown, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -11,6 +11,9 @@ import autoTable from 'jspdf-autotable';
 export default function KonselorHistory() {
   const [historyList, setHistoryList] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // State untuk pencarian
+  const [searchQuery, setSearchQuery] = useState('');
 
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
@@ -38,7 +41,6 @@ export default function KonselorHistory() {
             try {
               const konselorSnap = await getDocs(collection(db, `laporan/${laporanId}/konselor`));
               konselorSnap.forEach(kDoc => {
-                // LOGIKA PRIVASI: Hanya ambil jika konselor_id cocok dengan user yang login
                 if (kDoc.data().konselor_id === currentUserId) {
                   isMyCase = true;
                 }
@@ -72,11 +74,11 @@ export default function KonselorHistory() {
 
               allHistory.push({
                 id: laporanId,
-                title: lData.judul,
+                title: lData.judul || 'Tanpa Judul',
                 client: clientName,
                 kronologi: lData.kronologi || 'Tidak ada kronologi.',
                 lokasi: lData.lokasi || '-',
-                category: lData.kategori_id,
+                category: lData.kategori_id || '-',
                 notes: finalNote,
                 completedAtMillis: lData.updated_at?.toMillis() || lData.created_at?.toMillis() || 0,
                 completedAt: lData.updated_at ? lData.updated_at.toDate() : (lData.created_at ? lData.created_at.toDate() : new Date()),
@@ -100,6 +102,17 @@ export default function KonselorHistory() {
 
     fetchHistoryData();
   }, []);
+
+  // --- LOGIKA FILTER PENCARIAN ---
+  const filteredHistoryList = historyList.filter((history) => {
+    const query = searchQuery.toLowerCase();
+    return (
+      history.title.toLowerCase().includes(query) ||
+      history.client.toLowerCase().includes(query) ||
+      history.id.toLowerCase().includes(query) ||
+      history.category.toLowerCase().includes(query)
+    );
+  });
 
   // --- FUNGSI 1: CETAK REKAPITULASI (LANDSCAPE) ---
   const executePrintRecap = async () => {
@@ -218,7 +231,6 @@ export default function KonselorHistory() {
       
       doc.setFontSize(9); 
       doc.setFont("helvetica", "normal");
-      // Alamat dipisah jadi 2 baris agar rapi
       doc.text("Gedung Capil, Jl. Sultan Adam No.49, Surgi Mufti, Kec. Banjarmasin Utara,", pageWidth / 2, 27, { align: 'center' });
       doc.text("Kota Banjarmasin, Kalimantan Selatan 70122", pageWidth / 2, 31, { align: 'center' });
       
@@ -320,10 +332,24 @@ export default function KonselorHistory() {
 
             {/* List Riwayat Kasus */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="p-6 border-b border-gray-50 flex items-center justify-between">
+              <div className="p-6 border-b border-gray-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h3 className="text-lg font-black text-[#4B2C82]">Arsip Kasus Selesai</h3>
                   <p className="text-xs text-gray-500 font-medium mt-1">Laporan yang sudah mencapai tahap akhir penanganan.</p>
+                </div>
+                
+                {/* SEARCH BAR (Added) */}
+                <div className="relative w-full sm:w-72 shrink-0">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Search className="h-4 w-4 text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Cari ID, Klien, atau Judul..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#4B2C82] focus:ring-1 focus:ring-[#4B2C82] transition-colors"
+                  />
                 </div>
               </div>
               
@@ -335,9 +361,18 @@ export default function KonselorHistory() {
                     </div>
                     <p className="font-medium">Belum ada riwayat kasus yang diselesaikan.</p>
                   </div>
+                ) : filteredHistoryList.length === 0 ? (
+                  // State kosong ketika pencarian tidak ditemukan
+                  <div className="text-center py-12 text-gray-400">
+                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <Search className="w-8 h-8 opacity-50" />
+                    </div>
+                    <p className="font-medium">Kasus tidak ditemukan untuk pencarian "{searchQuery}".</p>
+                  </div>
                 ) : (
                   <div className="space-y-4">
-                    {historyList.map((history) => (
+                    {/* Looping data yang sudah di-filter */}
+                    {filteredHistoryList.map((history) => (
                       <div key={history.id} className="border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow bg-white flex flex-col lg:flex-row gap-6 lg:items-center justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2">
