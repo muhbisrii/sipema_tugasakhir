@@ -4,7 +4,7 @@ import { FileText, Clock, CheckCircle, Bot, ArrowRight, Shield, ShieldAlert, Hea
 import { motion, AnimatePresence } from 'framer-motion';
 import { auth, db } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
 
 export default function MasyarakatDashboard() {
   const navigate = useNavigate();
@@ -75,40 +75,55 @@ export default function MasyarakatDashboard() {
   };
   // ==========================================
 
-  // Mengambil Data User & Statistik Pengaduan dari Firebase
+  // Mengambil Data User & Statistik Pengaduan secara REAL-TIME
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    let unsubscribeLaporan;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
         try {
+          // 1. Ambil nama user
           const docRef = doc(db, "users", user.uid);
           const docSnap = await getDoc(docRef);
           if (docSnap.exists()) {
             setUserName(docSnap.data().nama.split(' ')[0]);
           }
 
-          const q = query(collection(db, "pengaduan"), where("user_id", "==", user.uid));
-          const querySnapshot = await getDocs(q);
-          
-          let total = 0;
-          let pending = 0;
-          let completed = 0;
+          // 2. Listener Real-time untuk koleksi "laporan"
+          const q = query(collection(db, "laporan"), where("user_id", "==", user.uid));
+          unsubscribeLaporan = onSnapshot(q, (querySnapshot) => {
+            let total = 0;
+            let pending = 0;
+            let completed = 0;
 
-          querySnapshot.forEach((doc) => {
-            total++;
-            const status = doc.data().status_pengaduan; 
-            if (status === 'menunggu' || status === 'diproses') pending++;
-            if (status === 'selesai') completed++;
+            querySnapshot.forEach((docSnapLaporan) => {
+              total++;
+              const status = docSnapLaporan.data().status_id?.toLowerCase() || ''; 
+              
+              if (status === 'selesai') {
+                completed++;
+              } else if (status !== 'ditolak') {
+                // Semua status selain 'selesai' dan 'ditolak' masuk hitungan Sedang Diproses
+                pending++;
+              }
+            });
+
+            setStats({ total, pending, completed });
           });
-
-          setStats({ total, pending, completed });
 
         } catch (error) {
           console.error("Gagal memuat data dashboard:", error);
         }
+      } else {
+        // Hentikan listener jika user logout
+        if (unsubscribeLaporan) unsubscribeLaporan();
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeLaporan) unsubscribeLaporan();
+    };
   }, []);
 
   const containerVariants = {
