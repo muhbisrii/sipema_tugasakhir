@@ -3,7 +3,7 @@ import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, serverTimestamp
 import { initializeApp, getApps } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { db, auth } from '../../firebase';
-import { Edit, Trash2, UserPlus, Search, X, Loader2, ShieldCheck, User, Star, AlertTriangle } from 'lucide-react';
+import { Edit, Trash2, UserPlus, Search, X, Loader2, ShieldCheck, User, Star, AlertTriangle, MessageSquare, CalendarClock } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -16,7 +16,7 @@ export default function AdminUsers() {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   
-  // States Modal Tambah (DIPERBARUI: Role paten jadi konselor)
+  // States Modal Tambah
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newUser, setNewUser] = useState({
@@ -32,7 +32,14 @@ export default function AdminUsers() {
   const [userToDelete, setUserToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // ==========================================
+  // FEEDBACK STATE (KOTAK SARAN)
+  // ==========================================
+  const [feedbacks, setFeedbacks] = useState([]);
+  const [loadingFeedbacks, setLoadingFeedbacks] = useState(true);
+
   useEffect(() => {
+    // 1. Fetch Users Data
     const fetchUsersData = async () => {
       try {
         const rolesSnap = await getDocs(collection(db, "roles"));
@@ -106,7 +113,31 @@ export default function AdminUsers() {
       }
     };
 
+    // 2. Fetch Feedback Data (Kotak Saran)
+    const fetchFeedbacks = async () => {
+      try {
+        const fbSnap = await getDocs(collection(db, "feedback_aplikasi"));
+        const fetchedFeedbacks = [];
+        fbSnap.forEach(doc => {
+          fetchedFeedbacks.push({ id: doc.id, ...doc.data() });
+        });
+        
+        // Urutkan dari yang terbaru
+        fetchedFeedbacks.sort((a, b) => {
+          const timeA = a.created_at?.toMillis() || 0;
+          const timeB = b.created_at?.toMillis() || 0;
+          return timeB - timeA;
+        });
+        setFeedbacks(fetchedFeedbacks);
+      } catch (error) {
+        console.error("Gagal memuat feedback:", error);
+      } finally {
+        setLoadingFeedbacks(false);
+      }
+    };
+
     fetchUsersData();
+    fetchFeedbacks();
   }, [refreshTrigger]); 
 
   const filteredUsers = users.filter(user => {
@@ -148,6 +179,13 @@ export default function AdminUsers() {
     return status === 'aktif' 
       ? <span className="px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase bg-green-100 text-green-800 border border-green-200">AKTIF</span>
       : <span className="px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase bg-red-100 text-red-800 border border-red-200">NONAKTIF</span>;
+  };
+
+  // Format Timestamp Firebase ke Tanggal Lokal
+  const formatDateTime = (timestamp) => {
+    if (!timestamp) return '-';
+    const date = timestamp.toDate();
+    return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
 
   // --- HANDLER TAMBAH USER (KONSELOR ONLY) ---
@@ -279,21 +317,7 @@ export default function AdminUsers() {
     setIsDeleting(true);
 
     try {
-      // 1. Hapus data pengguna dari Firestore
       await deleteDoc(doc(db, "users", userToDelete.id));
-
-      // 2. LOGIKA MENGHAPUS DARI FIREBASE AUTHENTICATION (BACKEND)
-      // Karena React (Client SDK) tidak bisa menghapus Auth pengguna lain, 
-      // Anda HARUS memanggil endpoint API/Cloud Function Anda di sini. 
-      // Contoh jika Anda sudah membuat API Cloud Function:
-      /*
-        await fetch(`https://REGION-PROJECT_ID.cloudfunctions.net/deleteUserAuth`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ uid: userToDelete.id })
-        });
-      */
-
       toast.success(`Pengguna "${userToDelete.nama}" berhasil dihapus dari database!`);
       setIsDeleteDialogOpen(false);
       setUserToDelete(null);
@@ -308,7 +332,7 @@ export default function AdminUsers() {
 
   return (
     <>
-      <div className="space-y-6 animate-fade-in">
+      <div className="space-y-8 animate-fade-in pb-10">
         {/* Header */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
@@ -456,6 +480,75 @@ export default function AdminUsers() {
             </table>
           </div>
         </div>
+
+        {/* ========================================================
+            TABEL FEEDBACK (KOTAK SARAN) - COLLECTION KE-10
+            ======================================================== */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          {/* Header Tabel Feedback */}
+          <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-purple-50 to-white flex items-center gap-4">
+            <div className="w-12 h-12 bg-white rounded-xl shadow-sm border border-purple-100 flex items-center justify-center shrink-0">
+              <MessageSquare className="w-6 h-6 text-[#4B2C82]" />
+            </div>
+            <div>
+              <h3 className="text-lg font-black text-[#4B2C82]">Kotak Saran & Masukan Pengguna</h3>
+              <p className="text-sm font-medium text-gray-500 mt-0.5">Daftar feedback, saran, atau laporan error yang dikirimkan oleh pengguna aplikasi.</p>
+            </div>
+          </div>
+
+          {/* Isi Tabel Feedback */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left min-w-[600px]">
+              <thead className="bg-gray-50 border-b border-gray-100">
+                <tr>
+                  <th className="py-3 px-6 text-xs font-black text-gray-500 uppercase tracking-widest whitespace-nowrap w-48">Tanggal Dikirim</th>
+                  <th className="py-3 px-6 text-xs font-black text-gray-500 uppercase tracking-widest whitespace-nowrap w-48">Pengirim</th>
+                  <th className="py-3 px-6 text-xs font-black text-gray-500 uppercase tracking-widest">Pesan / Saran</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {loadingFeedbacks ? (
+                  <tr>
+                    <td colSpan="3" className="py-12 text-center">
+                      <Loader2 className="w-6 h-6 text-[#4B2C82] animate-spin mx-auto mb-3" />
+                      <p className="text-sm font-medium text-gray-500">Memuat data masukan...</p>
+                    </td>
+                  </tr>
+                ) : feedbacks.length === 0 ? (
+                  <tr>
+                    <td colSpan="3" className="py-12 text-center">
+                      <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <MessageSquare className="w-6 h-6 text-gray-300" />
+                      </div>
+                      <p className="text-sm font-medium text-gray-500">Belum ada saran atau masukan dari pengguna.</p>
+                    </td>
+                  </tr>
+                ) : (
+                  feedbacks.map((fb) => (
+                    <tr key={fb.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="py-4 px-6 text-sm font-medium text-gray-500 align-top whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <CalendarClock className="w-4 h-4 text-gray-400" />
+                          {formatDateTime(fb.created_at)}
+                        </div>
+                      </td>
+                      <td className="py-4 px-6 align-top">
+                        <p className="text-sm font-bold text-[#4B2C82]">{fb.nama_pengirim || 'Anonim'}</p>
+                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Masyarakat</p>
+                      </td>
+                      <td className="py-4 px-6 align-top">
+                        <p className="text-sm text-gray-700 font-medium leading-relaxed bg-gray-50/50 p-3 rounded-xl border border-gray-100">
+                          "{fb.pesan_saran}"
+                        </p>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {/* ======================================================== */}
       </div>
 
       {/* --- MODALS --- */}
@@ -656,7 +749,7 @@ export default function AdminUsers() {
         )}
       </AnimatePresence>
 
-      {/* MODAL HAPUS PENGGUNA (BARU) */}
+      {/* Modal Hapus Pengguna */}
       <AnimatePresence>
         {isDeleteDialogOpen && userToDelete && (
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">

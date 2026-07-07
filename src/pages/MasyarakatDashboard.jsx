@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Clock, CheckCircle, Bot, ArrowRight, Shield, ShieldAlert, HeartHandshake, X, ChevronRight, ChevronLeft } from 'lucide-react';
+import { FileText, Clock, CheckCircle, Bot, ArrowRight, Shield, ShieldAlert, HeartHandshake, X, ChevronRight, ChevronLeft, MessageSquare, Send } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { auth, db } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
 
 export default function MasyarakatDashboard() {
   const navigate = useNavigate();
@@ -49,7 +49,6 @@ export default function MasyarakatDashboard() {
   ];
 
   useEffect(() => {
-    // Pengecekan agar Tour Modal hanya muncul 1x saat baru daftar/login
     const hasSeenTour = localStorage.getItem('hasSeenCustomTour');
     if (!hasSeenTour) {
       const timer = setTimeout(() => setShowTour(true), 1500);
@@ -75,6 +74,47 @@ export default function MasyarakatDashboard() {
   };
   // ==========================================
 
+  // ==========================================
+  // FEEDBACK APLIKASI (KOTAK SARAN) STATE
+  // ==========================================
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackText, setFeedbackText] = useState('');
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+  const [feedbackSuccess, setFeedbackSuccess] = useState(false);
+
+  const handleFeedbackSubmit = async (e) => {
+    e.preventDefault();
+    if (!feedbackText.trim()) return;
+
+    setIsSubmittingFeedback(true);
+    try {
+      const user = auth.currentUser;
+      if (user) {
+        // Menambahkan data ke collection ke-10: feedback_aplikasi
+        await addDoc(collection(db, "feedback_aplikasi"), {
+          user_id: user.uid,
+          nama_pengirim: userName,
+          pesan_saran: feedbackText,
+          created_at: serverTimestamp()
+        });
+        
+        setFeedbackSuccess(true);
+        setFeedbackText('');
+        
+        // Tutup modal otomatis setelah 2 detik
+        setTimeout(() => {
+          setShowFeedbackModal(false);
+          setFeedbackSuccess(false);
+        }, 2000);
+      }
+    } catch (error) {
+      console.error("Gagal mengirim feedback: ", error);
+    } finally {
+      setIsSubmittingFeedback(false);
+    }
+  };
+  // ==========================================
+
   // Mengambil Data User & Statistik Pengaduan secara REAL-TIME
   useEffect(() => {
     let unsubscribeLaporan;
@@ -82,14 +122,12 @@ export default function MasyarakatDashboard() {
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
         try {
-          // 1. Ambil nama user
           const docRef = doc(db, "users", user.uid);
           const docSnap = await getDoc(docRef);
           if (docSnap.exists()) {
             setUserName(docSnap.data().nama.split(' ')[0]);
           }
 
-          // 2. Listener Real-time untuk koleksi "laporan"
           const q = query(collection(db, "laporan"), where("user_id", "==", user.uid));
           unsubscribeLaporan = onSnapshot(q, (querySnapshot) => {
             let total = 0;
@@ -103,7 +141,6 @@ export default function MasyarakatDashboard() {
               if (status === 'selesai') {
                 completed++;
               } else if (status !== 'ditolak') {
-                // Semua status selain 'selesai' dan 'ditolak' masuk hitungan Sedang Diproses
                 pending++;
               }
             });
@@ -115,7 +152,6 @@ export default function MasyarakatDashboard() {
           console.error("Gagal memuat data dashboard:", error);
         }
       } else {
-        // Hentikan listener jika user logout
         if (unsubscribeLaporan) unsubscribeLaporan();
       }
     });
@@ -141,7 +177,7 @@ export default function MasyarakatDashboard() {
       variants={containerVariants}
       initial="hidden"
       animate="visible"
-      className="space-y-8 relative"
+      className="space-y-8 relative pb-20" // Tambahan padding bottom agar konten tidak tertutup tombol melayang
     >
       {/* ========================================================
           CUSTOM ONBOARDING MODAL (FRAMER MOTION + TAILWIND)
@@ -230,7 +266,6 @@ export default function MasyarakatDashboard() {
           </motion.div>
         )}
       </AnimatePresence>
-      {/* ======================================================== */}
 
       {/* Welcome Banner */}
       <motion.div variants={itemVariants}>
@@ -397,6 +432,80 @@ export default function MasyarakatDashboard() {
           </div>
         </div>
       </motion.div>
+
+      {/* ========================================================
+          FLOATING ACTION BUTTON (KOTAK SARAN / FEEDBACK)
+          ======================================================== */}
+      <div className="fixed bottom-8 right-8 z-[100]">
+        {/* Tombol Melayang */}
+        <button
+          onClick={() => setShowFeedbackModal(!showFeedbackModal)}
+          className="bg-[#4B2C82] text-white p-4 rounded-full shadow-2xl hover:bg-purple-900 transition-all hover:scale-110 active:scale-95 flex items-center justify-center group"
+          title="Kirim Saran atau Laporkan Error"
+        >
+          <MessageSquare className="w-6 h-6 group-hover:animate-pulse" />
+        </button>
+
+        {/* Modal Pop-up Kotak Saran */}
+        <AnimatePresence>
+          {showFeedbackModal && (
+            <motion.div
+              initial={{ opacity: 0, y: 50, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 50, scale: 0.9 }}
+              className="absolute bottom-20 right-0 w-[320px] bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100 origin-bottom-right"
+            >
+              {/* Header Modal Feedback */}
+              <div className="bg-[#4B2C82] p-4 flex justify-between items-center text-white">
+                <h3 className="font-bold flex items-center gap-2 text-sm">
+                  <MessageSquare className="w-4 h-4" /> Kotak Saran Aplikasi
+                </h3>
+                <button onClick={() => setShowFeedbackModal(false)} className="hover:text-red-300 transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Isi Form Feedback */}
+              <div className="p-5">
+                {feedbackSuccess ? (
+                  <motion.div 
+                    initial={{ scale: 0.8, opacity: 0 }} 
+                    animate={{ scale: 1, opacity: 1 }} 
+                    className="text-center py-6 text-green-600 font-bold flex flex-col items-center gap-3"
+                  >
+                    <CheckCircle className="w-12 h-12" />
+                    <span>Terima kasih atas saran Anda!</span>
+                  </motion.div>
+                ) : (
+                  <form onSubmit={handleFeedbackSubmit}>
+                    <p className="text-xs text-gray-500 mb-4 leading-relaxed">
+                      Punya masukan fitur, atau menemukan error (bug)? Beritahu kami agar aplikasi ini menjadi lebih baik.
+                    </p>
+                    <textarea
+                      value={feedbackText}
+                      onChange={(e) => setFeedbackText(e.target.value)}
+                      placeholder="Ketik saran atau temuan error Anda di sini..."
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none mb-4 resize-none h-28"
+                      required
+                    />
+                    <button
+                      type="submit"
+                      disabled={isSubmittingFeedback || !feedbackText.trim()}
+                      className="w-full bg-[#4B2C82] text-white py-3 rounded-xl font-bold hover:bg-purple-900 transition-colors disabled:bg-gray-300 flex justify-center items-center gap-2"
+                    >
+                      {isSubmittingFeedback ? 'Mengirim...' : (
+                        <>Kirim Saran <Send className="w-4 h-4" /></>
+                      )}
+                    </button>
+                  </form>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+      {/* ======================================================== */}
+
     </motion.div>
   );
 }
